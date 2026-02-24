@@ -1,0 +1,18 @@
+# Code AST Graph 依赖
+
+# 核心依赖
+gradio>=4.0.0
+python-dotenv>=1.0.0
+pandas>=2.0.0
+
+# Neo4j 图数据库
+neo4j>=5.14.0
+
+# Java 代码解析
+javalang>=0.13.0  # Java 源码解析器（纯 Python）
+
+# MCP 服务器（可选）
+mcp>=0.1.0
+
+# Git 支持
+GitPython>=3.1.0

@@ -1,0 +1,28 @@
+# jQAssistant 模块配置示例
+# 复制此文件为 config/modules/jqassistant.yaml 并根据需要修改
+
+jqassistant:
+  # 功能开关
+  enabled: false
+  
+  # jQAssistant 版本
+  version: "2.8.0"
+  
+  # JAR 文件路径（如果指定，使用指定路径；否则使用 Maven 插件）
+  jar_path: null
+  
+  # 存储配置（继承全局配置）
+  storage:
+    use_global: true
+  
+  # 扫描配置
+  scan:
+    timeout: 3600
+    parallel: true
+    max_workers: 4
+  
+  # Docker 模式配置
+  docker:
+    enabled: false
+    container_name: "jqassistant-scanner"
+    image: "jqassistant/jqassistant-cli:2.8.0"

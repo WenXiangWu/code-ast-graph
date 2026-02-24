@@ -1,0 +1,14 @@
+{
+  "name": "code-ast-graph",
+  "version": "1.0.0",
+  "private": true,
+  "description": "代码知识图谱分析工具",
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"python run.py\" \"npm run dev --prefix frontend\"",
+    "dev:backend": "python run.py",
+    "dev:frontend": "npm run dev --prefix frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
