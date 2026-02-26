@@ -738,7 +738,7 @@ class JavaASTScannerV2:
             is_entry = False
             is_job = False
             is_mq_listener = False
-            rpc_path = None
+            rpc_paths = []
             http_method = None
             job_type = None
             cron_expr = None
@@ -754,7 +754,7 @@ class JavaASTScannerV2:
                     # 检查是否为 RPC 入口
                     if ann_name in self.RPC_ANNOTATIONS:
                         is_entry = True
-                        rpc_path = self._extract_rpc_path(ann, ann_name)
+                        rpc_paths = self._extract_rpc_paths(ann, ann_name)
                         http_method = self._infer_http_method(ann_name)
                     
                     # 检查是否为 Job
@@ -832,14 +832,15 @@ class JavaASTScannerV2:
             }
             methods.append(method_info)
             
-            # 创建 RPC Endpoint
-            if is_entry and rpc_path:
-                rpc_endpoints.append({
-                    'path': rpc_path,
-                    'http_method': http_method or 'POST',
-                    'method_signature': method_signature,
-                    'service_name': class_fqn.split('.')[-1]
-                })
+            # 创建 RPC Endpoint（支持多 path，如 @PostMapping(path = {"/a", "/b"})）
+            if is_entry and rpc_paths:
+                for p in rpc_paths:
+                    rpc_endpoints.append({
+                        'path': p,
+                        'http_method': http_method or 'POST',
+                        'method_signature': method_signature,
+                        'service_name': class_fqn.split('.')[-1]
+                    })
             
             # 创建 Job
             if is_job:
@@ -1558,28 +1559,49 @@ class JavaASTScannerV2:
         s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
     
-    def _extract_rpc_path(self, ann, ann_name: str) -> Optional[str]:
-        """提取 RPC 路径"""
+    def _extract_rpc_paths(self, ann, ann_name: str) -> List[str]:
+        """
+        提取 RPC 路径，支持单路径与多路径。
+        如 @PostMapping(path = {"/a", "/b"}) 返回 ["/a", "/b"]；
+        @PostMapping(path = "/a") 返回 ["/a"]。
+        """
         if not hasattr(ann, 'element') or not ann.element:
-            return None
-        
+            return []
+        paths = []
+
+        def collect_literal(val):
+            if isinstance(val, javalang.tree.Literal):
+                s = val.value.strip('"')
+                if s:
+                    paths.append(s)
+            elif hasattr(val, 'values') and isinstance(val.values, list):
+                for v in val.values:
+                    collect_literal(v)
+            elif isinstance(val, list):
+                for v in val:
+                    collect_literal(v)
+
         # 情况1: element 是 Literal (如 @MobileAPI("/path"))
         if isinstance(ann.element, javalang.tree.Literal):
-            return ann.element.value.strip('"')
-        
-        # 情况2: element 是 ElementValuePair 列表 (如 @MobileAPI(path = "/path"))
+            collect_literal(ann.element)
+            return paths
+        # 情况2: element 是 ElementValuePair 列表 (如 @PostMapping(path = "/path") 或 path = {"/a","/b"})
         if isinstance(ann.element, list):
             for elem in ann.element:
-                if hasattr(elem, 'name') and elem.name in ('path', 'value'):
-                    if hasattr(elem, 'value') and isinstance(elem.value, javalang.tree.Literal):
-                        return elem.value.value.strip('"')
-        
-        # 情况3: element 是单个 ElementValuePair (如 @RequestMapping(path = "/path"))
+                if hasattr(elem, 'name') and elem.name in ('path', 'value') and hasattr(elem, 'value'):
+                    collect_literal(elem.value)
+                    if paths:
+                        return paths
+        # 情况3: element 是单个 ElementValuePair
         if hasattr(ann.element, 'name') and ann.element.name in ('path', 'value'):
-            if hasattr(ann.element, 'value') and isinstance(ann.element.value, javalang.tree.Literal):
-                return ann.element.value.value.strip('"')
-        
-        return None
+            if hasattr(ann.element, 'value'):
+                collect_literal(ann.element.value)
+        return paths
+
+    def _extract_rpc_path(self, ann, ann_name: str) -> Optional[str]:
+        """提取单个 RPC 路径（兼容旧逻辑，返回第一个）"""
+        paths = self._extract_rpc_paths(ann, ann_name)
+        return paths[0] if paths else None
     
     def _infer_http_method(self, ann_name: str) -> str:
         """推断 HTTP 方法"""

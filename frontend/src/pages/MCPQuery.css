@@ -52,3 +52,29 @@
 .mcp-tabs .ant-table-cell {
   word-break: break-word !important;
 }
+
+/* 调用统计 Tab 内 JSON 展示（react-json-view-lite 容器） */
+.call-stats-json-wrapper {
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  min-height: 300px;
+  overflow: auto;
+  font-size: 13px;
+}
+
+/* 与 antd 浅色主题协调的 JSON 视图覆盖 */
+.call-stats-json-wrapper [data-key] {
+  font-family: 'Consolas', 'Monaco', 'Menlo', monospace;
+}
+
+/* 无数据时 Tab 内空状态提示 */
+.mcp-empty-tab {
+  padding: 24px 16px;
+  color: #64748b;
+  font-size: 14px;
+  text-align: center;
+  background: #f8fafc;
+  border-radius: 8px;
+}

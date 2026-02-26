@@ -28,7 +28,7 @@ from src.parsers.java import JavaParserV2
 from src.services.scan_service import ScanService
 from src.inputs.filesystem_input import FileSystemCodeInput
 from src.query import Neo4jQuerier
-from src.queries.mcp_query import MCPQuerier
+from src.queries.mcp_query import MCPQuerier, collect_call_statistics
 
 # 配置日志
 logging.basicConfig(
@@ -661,6 +661,42 @@ async def mcp_query(request: MCPQueryRequest):
         return result.to_dict()
     except Exception as e:
         logger.error(f"MCP 查询失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/mcp/query/stats")
+async def mcp_query_stats(request: MCPQueryRequest):
+    """
+    仅返回「调用统计」JSON，不返回完整 call_tree 等。
+    入参与 /api/mcp/query 相同；返回 class_stats、tables、mq_list、frontend_entries。
+    """
+    if not mcp_querier:
+        raise HTTPException(status_code=503, detail="MCP 查询器未初始化")
+    if not request.project or not request.class_fqn or not request.method:
+        raise HTTPException(status_code=400, detail="project、class_fqn、method 都是必填项")
+    try:
+        result = mcp_querier.query_full_chain(
+            project=request.project,
+            class_fqn=request.class_fqn,
+            method=request.method,
+            max_depth=request.max_depth,
+        )
+        if not result.success:
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": False,
+                    "message": result.message,
+                    "class_stats": [],
+                    "tables": [],
+                    "mq_list": [],
+                    "frontend_entries": [],
+                },
+            )
+        stats = collect_call_statistics(result)
+        return {"success": True, **stats}
+    except Exception as e:
+        logger.error(f"MCP 调用统计查询失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -6,9 +6,9 @@ export default function ApiDocs() {
     <div className="app-container">
       <Card
         title={
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
             gap: '12px',
             fontSize: '17px',
             fontWeight: 600,
@@ -17,12 +17,12 @@ export default function ApiDocs() {
             <span>API 文档</span>
           </div>
         }
-        style={{ 
+        style={{
           height: 'calc(100vh - 112px)',
           display: 'flex',
           flexDirection: 'column',
         }}
-        bodyStyle={{ 
+        bodyStyle={{
           padding: 0,
           flex: 1,
           display: 'flex',

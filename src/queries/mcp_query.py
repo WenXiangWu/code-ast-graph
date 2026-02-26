@@ -215,6 +215,60 @@ class MCPQueryResult:
         return result
 
 
+def collect_call_statistics(result: MCPQueryResult) -> dict:
+    """
+    从 MCP 查询结果中汇总「调用统计」JSON，与前端 collectCallStatistics 结构一致。
+    用于对外接口直接返回调用统计。
+    
+    Returns:
+        {
+            "class_stats": [ {"class": fqn, "call_count": n, "methods": [...], "project": "..."} ],
+            "tables": [ "table_a", ... ],
+            "mq_list": [ "topic1", ... ],
+            "frontend_entries": [ {"project", "class_fqn", "method", "path", "http_method"}, ... ]
+        }
+    """
+    class_map: Dict[str, dict] = {}  # fqn -> { count, methods set, project }
+    tables_set = set()
+    mq_list_set = set()
+
+    def walk(node: CallNode):
+        if node.node_type in ('method', 'interface', 'aries_job') and node.class_fqn:
+            key = node.class_fqn
+            if key not in class_map:
+                class_map[key] = {'count': 0, 'methods': set(), 'project': node.project or ''}
+            class_map[key]['count'] += 1
+            if node.method_name:
+                class_map[key]['methods'].add(node.method_name)
+        if node.node_type == 'db_call' and node.table_name:
+            tables_set.add(node.table_name)
+        if node.node_type == 'mq' and node.mq_topic:
+            mq_list_set.add(node.mq_topic)
+        for child in node.children or []:
+            walk(child)
+
+    if result.call_tree:
+        walk(result.call_tree)
+
+    class_stats = [
+        {
+            'class': cls,
+            'call_count': v['count'],
+            'methods': sorted(v['methods']),
+            'project': v['project'],
+        }
+        for cls, v in class_map.items()
+    ]
+    class_stats.sort(key=lambda x: -x['call_count'])
+
+    return {
+        'class_stats': class_stats,
+        'tables': sorted(tables_set),
+        'mq_list': sorted(mq_list_set),
+        'frontend_entries': [asdict(e) for e in result.endpoints],
+    }
+
+
 class MCPQuerier:
     """MCP 标准化查询器"""
     
@@ -397,9 +451,11 @@ class MCPQuerier:
     
     def _find_implementation_methods(self, interface_method_sig: str) -> List[str]:
         """
-        查找接口方法的所有实现类方法
-        如果不是接口方法，返回空列表
+        查找接口方法的所有实现类方法。
+        支持完整签名与 scanner 生成的简化签名（class_fqn.methodName(...)），
+        否则通过接口扫描得到的完整签名无法匹配，导致实现类（如 RewardServiceImpl.rewardGift）不会出现在树中。
         """
+        # 先按完整签名匹配
         result = self.storage.execute_query("""
             MATCH (iface:INTERFACE)-[:DECLARES]->(iface_method:Method {signature: $method_sig})
             MATCH (impl_class:CLASS)-[:IMPLEMENTS]->(iface)
@@ -407,12 +463,30 @@ class MCPQuerier:
             WHERE impl_method.name = iface_method.name
             RETURN DISTINCT impl_method.signature as impl_signature
         """, {'method_sig': interface_method_sig})
-        
         impl_methods = [r['impl_signature'] for r in result]
-        
+
+        # 若未命中且为简化签名（xxx.methodName(...)），按「接口 FQN + 方法名」再查一次
+        if not impl_methods and interface_method_sig.endswith('(...)'):
+            # 解析出 class_fqn 与 method_name，例如 com.xxx.RewardService.rewardGift(...) -> RewardService FQN + rewardGift
+            parts = interface_method_sig[:-5].rsplit('.', 1)  # 去掉 '(...)'
+            if len(parts) == 2:
+                iface_fqn, method_name = parts[0], parts[1]
+                result = self.storage.execute_query("""
+                    MATCH (iface:INTERFACE)
+                    WHERE iface.fqn = $iface_fqn
+                    MATCH (iface)-[:DECLARES]->(iface_method:Method)
+                    WHERE iface_method.name = $method_name
+                    MATCH (impl_class:CLASS)-[:IMPLEMENTS]->(iface)
+                    MATCH (impl_class)-[:DECLARES]->(impl_method:Method)
+                    WHERE impl_method.name = iface_method.name
+                    RETURN DISTINCT impl_method.signature as impl_signature
+                """, {'iface_fqn': iface_fqn, 'method_name': method_name})
+                impl_methods = [r['impl_signature'] for r in result]
+                if impl_methods:
+                    logger.info(f"通过简化签名解析到接口 {iface_fqn}.{method_name}，找到 {len(impl_methods)} 个实现类方法")
+
         if impl_methods:
             logger.info(f"接口方法 {interface_method_sig} 有 {len(impl_methods)} 个实现类方法")
-        
         return impl_methods
     
     def _find_start_method(self, project: str, class_fqn: str, method: str) -> Optional[str]:
@@ -931,12 +1005,11 @@ class MCPQuerier:
 
             root.children.append(dubbo_node)
 
-        # 2. 查询内部方法调用
+        # 2. 查询内部方法调用（放宽：不按项目过滤，避免同仓库多模块时漏掉 Service 等；提高 LIMIT 避免截断核心下游）
         calls_result = self.storage.execute_query("""
             MATCH (m:Method {signature: $method_sig})-[:CALLS]->(called_method:Method)
             MATCH (called_class)-[:DECLARES]->(called_method)
             OPTIONAL MATCH (called_project:Project)-[:CONTAINS]->(called_class)
-            WHERE called_project.name = $current_project OR called_project IS NULL
             RETURN DISTINCT
                 called_method.signature as called_signature,
                 called_project.name as called_project,
@@ -944,8 +1017,8 @@ class MCPQuerier:
                 called_class.name as called_class_name,
                 called_class.arch_layer as called_arch_layer,
                 called_method.name as called_method_name
-            LIMIT 10
-        """, {'method_sig': method_sig, 'current_project': r['project']})
+            LIMIT 80
+        """, {'method_sig': method_sig})
         
         for cr in calls_result:
             if not can_expand:

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Card, Form, Input, Button, Select, message, Descriptions, Table, Tag, Tabs, Space, Typography, Tree } from 'antd'
-import { SearchOutlined, ApiOutlined, DatabaseOutlined, CloudOutlined, ClockCircleOutlined, MessageOutlined, ApartmentOutlined, FunctionOutlined, SwapOutlined } from '@ant-design/icons'
+import { SearchOutlined, ApiOutlined, DatabaseOutlined, CloudOutlined, ClockCircleOutlined, MessageOutlined, ApartmentOutlined, FunctionOutlined, SwapOutlined, BarChartOutlined } from '@ant-design/icons'
 import type { DataNode } from 'antd/es/tree'
 import axios from 'axios'
+import { JsonView, defaultStyles } from 'react-json-view-lite'
+import 'react-json-view-lite/dist/index.css'
 import './MCPQuery.css'
 
 const { Title, Text } = Typography
@@ -77,15 +79,110 @@ interface MCPQueryResult {
   call_tree?: CallNode
 }
 
+const STORAGE_KEY = 'mcp-query-last-result'
+
+/** 无结果时的空数据结构，用于始终展示下方统计与 Tab 区域 */
+const EMPTY_RESULT: MCPQueryResult = {
+  success: false,
+  message: '',
+  endpoints: [],
+  internal_classes: [],
+  dubbo_calls: [],
+  tables: [],
+  aries_jobs: [],
+  mq_info: [],
+}
+
+/** 调用统计：类频次、方法列表、表、MQ、前端入口 */
+interface CallStatistics {
+  class_stats: Array<{
+    class: string
+    call_count: number
+    methods: string[]
+    project: string
+  }>
+  tables: string[]
+  mq_list: string[]
+  frontend_entries: Array<{
+    project: string
+    class_fqn: string
+    method: string
+    path: string
+    http_method: string
+  }>
+}
+
+function collectCallStatistics(root: CallNode, result: MCPQueryResult): CallStatistics {
+  const classMap = new Map<string, { count: number; methods: Set<string>; project: string }>()
+  const tables = new Set<string>()
+  const mqList = new Set<string>()
+
+  function walk(node: CallNode) {
+    if (node.node_type === 'method' || node.node_type === 'interface' || node.node_type === 'aries_job') {
+      const key = node.class_fqn || ''
+      if (key) {
+        if (!classMap.has(key)) {
+          classMap.set(key, { count: 0, methods: new Set(), project: node.project || '' })
+        }
+        const ent = classMap.get(key)!
+        ent.count += 1
+        if (node.method_name) ent.methods.add(node.method_name)
+      }
+    }
+    if (node.node_type === 'db_call' && node.table_name) {
+      tables.add(node.table_name)
+    }
+    if (node.node_type === 'mq' && node.mq_topic) {
+      mqList.add(node.mq_topic)
+    }
+    node.children?.forEach(walk)
+  }
+  walk(root)
+
+  const class_stats = Array.from(classMap.entries())
+    .map(([cls, v]) => ({
+      class: cls,
+      call_count: v.count,
+      methods: Array.from(v.methods).sort(),
+      project: v.project,
+    }))
+    .sort((a, b) => b.call_count - a.call_count)
+
+  return {
+    class_stats,
+    tables: Array.from(tables).sort(),
+    mq_list: Array.from(mqList).sort(),
+    frontend_entries: result.endpoints || [],
+  }
+}
+
 function MCPQuery() {
   const [form] = Form.useForm()
   const [projects, setProjects] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<MCPQueryResult | null>(null)
+  const [result, setResult] = useState<MCPQueryResult | null>(() => {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw) as MCPQueryResult
+        if (parsed && typeof parsed.success === 'boolean') return parsed
+      }
+    } catch (_) {}
+    return null
+  })
 
   useEffect(() => {
     fetchProjects()
   }, [])
+
+  // 持久化查询结果，切换 Tab 或离开再返回时保留
+  useEffect(() => {
+    if (result && result.success) {
+      try {
+        sessionStorage.setItem(STORAGE_KEY, JSON.stringify(result))
+      } catch (_) {}
+    }
+  }, [result])
 
   const fetchProjects = async () => {
     try {
@@ -386,160 +483,178 @@ function MCPQuery() {
         </Form>
       </Card>
 
-      {result && result.success && (
-        <Card 
-          style={{ 
-            marginTop: 24,
-          }}
-          bordered={false}
-        >
-          <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            {/* 统计概览 */}
-            <Descriptions 
-              bordered 
-              column={3}
-              size="middle"
-              labelStyle={{ 
-                fontWeight: 600,
-                fontSize: '14px',
-                padding: '12px 16px'
-              }}
-              contentStyle={{ 
-                fontSize: '16px',
-                fontWeight: 600,
-                padding: '12px 16px'
-              }}
-            >
-              <Descriptions.Item label={<><ApiOutlined style={{ marginRight: 8 }} /> 前端入口</>}>
-                <span style={{ color: '#60a5fa' }}>{result.endpoints.length}</span>
-              </Descriptions.Item>
-              <Descriptions.Item label={<><CloudOutlined style={{ marginRight: 8 }} /> 内部类</>}>
-                <span style={{ color: '#34d399' }}>{result.internal_classes.length}</span>
-              </Descriptions.Item>
-              <Descriptions.Item label={<><ApiOutlined style={{ marginRight: 8 }} /> Dubbo 调用</>}>
-                <span style={{ color: '#fbbf24' }}>{result.dubbo_calls.length}</span>
-              </Descriptions.Item>
-              <Descriptions.Item label={<><DatabaseOutlined style={{ marginRight: 8 }} /> 数据库表</>}>
-                <span style={{ color: '#f472b6' }}>{result.tables.length}</span>
-              </Descriptions.Item>
-              <Descriptions.Item label={<><ClockCircleOutlined style={{ marginRight: 8 }} /> Aries Job</>}>
-                <span style={{ color: '#a78bfa' }}>{result.aries_jobs.length}</span>
-              </Descriptions.Item>
-              <Descriptions.Item label={<><MessageOutlined style={{ marginRight: 8 }} /> MQ 信息</>}>
-                <span style={{ color: '#fb923c' }}>{result.mq_info.length}</span>
-              </Descriptions.Item>
-            </Descriptions>
+      {/* 下方统计与 Tab 始终展示：无结果时用空数据，有结果时用查询数据；结果会持久化到 sessionStorage，切换 Tab 或离开再返回不丢失 */}
+      <Card 
+        style={{ marginTop: 24 }}
+        bordered={false}
+      >
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          {/* 统计概览 */}
+          <Descriptions 
+            bordered 
+            column={3}
+            size="middle"
+            labelStyle={{ 
+              fontWeight: 600,
+              fontSize: '14px',
+              padding: '12px 16px'
+            }}
+            contentStyle={{ 
+              fontSize: '16px',
+              fontWeight: 600,
+              padding: '12px 16px'
+            }}
+          >
+            <Descriptions.Item label={<><ApiOutlined style={{ marginRight: 8 }} /> 前端入口</>}>
+              <span style={{ color: '#60a5fa' }}>{(result?.endpoints ?? EMPTY_RESULT.endpoints).length}</span>
+            </Descriptions.Item>
+            <Descriptions.Item label={<><CloudOutlined style={{ marginRight: 8 }} /> 内部类</>}>
+              <span style={{ color: '#34d399' }}>{(result?.internal_classes ?? EMPTY_RESULT.internal_classes).length}</span>
+            </Descriptions.Item>
+            <Descriptions.Item label={<><ApiOutlined style={{ marginRight: 8 }} /> Dubbo 调用</>}>
+              <span style={{ color: '#fbbf24' }}>{(result?.dubbo_calls ?? EMPTY_RESULT.dubbo_calls).length}</span>
+            </Descriptions.Item>
+            <Descriptions.Item label={<><DatabaseOutlined style={{ marginRight: 8 }} /> 数据库表</>}>
+              <span style={{ color: '#f472b6' }}>{(result?.tables ?? EMPTY_RESULT.tables).length}</span>
+            </Descriptions.Item>
+            <Descriptions.Item label={<><ClockCircleOutlined style={{ marginRight: 8 }} /> Aries Job</>}>
+              <span style={{ color: '#a78bfa' }}>{(result?.aries_jobs ?? EMPTY_RESULT.aries_jobs).length}</span>
+            </Descriptions.Item>
+            <Descriptions.Item label={<><MessageOutlined style={{ marginRight: 8 }} /> MQ 信息</>}>
+              <span style={{ color: '#fb923c' }}>{(result?.mq_info ?? EMPTY_RESULT.mq_info).length}</span>
+            </Descriptions.Item>
+          </Descriptions>
 
-            {/* 详细结果 */}
-            <Tabs 
-              defaultActiveKey="call-tree"
-              type="card"
+          {/* 详细结果 Tab：有结果用 result，无结果用 EMPTY_RESULT，切换 Tab 不清除 */}
+          <Tabs 
+            defaultActiveKey="call-tree"
+            type="card"
+            destroyInactiveTabPane={false}
+          >
+            {/* 调用树：有 call_tree 时展示树，无时展示空状态 */}
+            <TabPane 
+              tab={<span><ApartmentOutlined /> 调用树</span>} 
+              key="call-tree"
             >
-              {/* 新增：调用树 Tab */}
-              {result.call_tree && (
-                <TabPane 
-                  tab={<span><ApartmentOutlined /> 调用树</span>} 
-                  key="call-tree"
-                >
-                  <div style={{ padding: '16px', background: '#fff' }}>
-                    <Tree
-                      showLine
-                      showIcon
-                      defaultExpandAll
-                      treeData={[convertToTreeData(result.call_tree)]}
-                      style={{ fontSize: '14px' }}
-                    />
-                  </div>
-                </TabPane>
+              {result?.call_tree ? (
+                <div style={{ padding: '16px', background: '#fff' }}>
+                  <Tree
+                    showLine
+                    showIcon
+                    defaultExpandAll
+                    treeData={[convertToTreeData(result.call_tree)]}
+                    style={{ fontSize: '14px' }}
+                  />
+                </div>
+              ) : (
+                <div className="mcp-empty-tab">请在上方输入条件并点击「查询」后查看调用树</div>
               )}
+            </TabPane>
 
-              <TabPane 
-                tab={<span><ApiOutlined /> 前端入口 ({result.endpoints.length})</span>} 
-                key="1"
-              >
-                <Table
-                  dataSource={result.endpoints}
-                  columns={endpointColumns}
-                  rowKey={(record, index) => `endpoint-${index}`}
-                  pagination={false}
-                  size="middle"
-                  locale={{ emptyText: '暂无数据' }}
-                />
-              </TabPane>
+            {/* 调用统计 */}
+            <TabPane 
+              tab={<span><BarChartOutlined /> 调用统计</span>} 
+              key="call-stats"
+            >
+              {result?.call_tree ? (
+                <div className="call-stats-json-wrapper">
+                  <JsonView
+                    data={collectCallStatistics(result.call_tree, result)}
+                    shouldExpandNode={(level: number) => level < 2}
+                    style={defaultStyles}
+                  />
+                </div>
+              ) : (
+                <div className="mcp-empty-tab">请先完成查询后再查看调用统计</div>
+              )}
+            </TabPane>
 
-              <TabPane 
-                tab={<span><CloudOutlined /> 内部类 ({result.internal_classes.length})</span>} 
-                key="2"
-              >
-                <Table
-                  dataSource={result.internal_classes}
-                  columns={classColumns}
-                  rowKey={(record, index) => `class-${index}`}
-                  pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
-                  size="middle"
-                  locale={{ emptyText: '暂无数据' }}
-                />
-              </TabPane>
+            <TabPane 
+              tab={<span><ApiOutlined /> 前端入口 ({(result?.endpoints ?? EMPTY_RESULT.endpoints).length})</span>} 
+              key="1"
+            >
+              <Table
+                dataSource={result?.endpoints ?? EMPTY_RESULT.endpoints}
+                columns={endpointColumns}
+                rowKey={(_, index) => `endpoint-${index}`}
+                pagination={false}
+                size="middle"
+                locale={{ emptyText: '暂无数据，请先查询' }}
+              />
+            </TabPane>
 
-              <TabPane 
-                tab={<span><ApiOutlined /> Dubbo 调用 ({result.dubbo_calls.length})</span>} 
-                key="3"
-              >
-                <Table
-                  dataSource={result.dubbo_calls}
-                  columns={dubboColumns}
-                  rowKey={(record, index) => `dubbo-${index}`}
-                  pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
-                  size="middle"
-                  locale={{ emptyText: '暂无数据' }}
-                />
-              </TabPane>
+            <TabPane 
+              tab={<span><CloudOutlined /> 内部类 ({(result?.internal_classes ?? EMPTY_RESULT.internal_classes).length})</span>} 
+              key="2"
+            >
+              <Table
+                dataSource={result?.internal_classes ?? EMPTY_RESULT.internal_classes}
+                columns={classColumns}
+                rowKey={(_, index) => `class-${index}`}
+                pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
+                size="middle"
+                locale={{ emptyText: '暂无数据，请先查询' }}
+              />
+            </TabPane>
 
-              <TabPane 
-                tab={<span><DatabaseOutlined /> 数据库表 ({result.tables.length})</span>} 
-                key="4"
-              >
-                <Table
-                  dataSource={result.tables}
-                  columns={tableColumns}
-                  rowKey={(record, index) => `table-${index}`}
-                  pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
-                  size="middle"
-                  locale={{ emptyText: '暂无数据' }}
-                />
-              </TabPane>
+            <TabPane 
+              tab={<span><ApiOutlined /> Dubbo 调用 ({(result?.dubbo_calls ?? EMPTY_RESULT.dubbo_calls).length})</span>} 
+              key="3"
+            >
+              <Table
+                dataSource={result?.dubbo_calls ?? EMPTY_RESULT.dubbo_calls}
+                columns={dubboColumns}
+                rowKey={(_, index) => `dubbo-${index}`}
+                pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
+                size="middle"
+                locale={{ emptyText: '暂无数据，请先查询' }}
+              />
+            </TabPane>
 
-              <TabPane 
-                tab={<span><ClockCircleOutlined /> Aries Job ({result.aries_jobs.length})</span>} 
-                key="5"
-              >
-                <Table
-                  dataSource={result.aries_jobs}
-                  columns={jobColumns}
-                  rowKey={(record, index) => `job-${index}`}
-                  pagination={false}
-                  size="middle"
-                  locale={{ emptyText: '暂无数据' }}
-                />
-              </TabPane>
+            <TabPane 
+              tab={<span><DatabaseOutlined /> 数据库表 ({(result?.tables ?? EMPTY_RESULT.tables).length})</span>} 
+              key="4"
+            >
+              <Table
+                dataSource={result?.tables ?? EMPTY_RESULT.tables}
+                columns={tableColumns}
+                rowKey={(_, index) => `table-${index}`}
+                pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
+                size="middle"
+                locale={{ emptyText: '暂无数据，请先查询' }}
+              />
+            </TabPane>
 
-              <TabPane 
-                tab={<span><MessageOutlined /> MQ 信息 ({result.mq_info.length})</span>} 
-                key="6"
-              >
-                <Table
-                  dataSource={result.mq_info}
-                  columns={mqColumns}
-                  rowKey={(record, index) => `mq-${index}`}
-                  pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
-                  size="middle"
-                  locale={{ emptyText: '暂无数据' }}
-                />
-              </TabPane>
-            </Tabs>
-          </Space>
-        </Card>
-      )}
+            <TabPane 
+              tab={<span><ClockCircleOutlined /> Aries Job ({(result?.aries_jobs ?? EMPTY_RESULT.aries_jobs).length})</span>} 
+              key="5"
+            >
+              <Table
+                dataSource={result?.aries_jobs ?? EMPTY_RESULT.aries_jobs}
+                columns={jobColumns}
+                rowKey={(_, index) => `job-${index}`}
+                pagination={false}
+                size="middle"
+                locale={{ emptyText: '暂无数据，请先查询' }}
+              />
+            </TabPane>
+
+            <TabPane 
+              tab={<span><MessageOutlined /> MQ 信息 ({(result?.mq_info ?? EMPTY_RESULT.mq_info).length})</span>} 
+              key="6"
+            >
+              <Table
+                dataSource={result?.mq_info ?? EMPTY_RESULT.mq_info}
+                columns={mqColumns}
+                rowKey={(_, index) => `mq-${index}`}
+                pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `共 ${total} 条` }}
+                size="middle"
+                locale={{ emptyText: '暂无数据，请先查询' }}
+              />
+            </TabPane>
+          </Tabs>
+        </Space>
+      </Card>
     </div>
   )
 }

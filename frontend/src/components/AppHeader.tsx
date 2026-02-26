@@ -1,6 +1,6 @@
 import { Layout, Menu } from 'antd'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ProjectOutlined, SearchOutlined, NodeIndexOutlined, ApiOutlined, FileTextOutlined } from '@ant-design/icons'
+import { ProjectOutlined, NodeIndexOutlined, ApiOutlined, FileTextOutlined } from '@ant-design/icons'
 
 const { Header } = Layout
 
@@ -9,11 +9,6 @@ const menuItems = [
     key: '/',
     icon: <ProjectOutlined />,
     label: '项目管理',
-  },
-  {
-    key: '/query',
-    icon: <SearchOutlined />,
-    label: '图谱查询',
   },
   {
     key: '/visualization',
