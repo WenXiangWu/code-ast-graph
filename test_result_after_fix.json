@@ -1,0 +1,554 @@
+{
+  "success": true,
+  "message": "查询成功：共找到 6 个内部类、0 个 Dubbo 调用、1 个表",
+  "endpoints": [
+    {
+      "project": "official-room-pro-web",
+      "class_fqn": "com.yupaopao.chatroom.official.room.web.controller.NobleController",
+      "method": "openNoble",
+      "path": "/official/open/noble",
+      "http_method": "POST"
+    }
+  ],
+  "internal_classes": [
+    {
+      "project": "yuer-chatroom-service",
+      "class_fqn": "com.yupaopao.chatroom.config.noble.NobleApolloConfig",
+      "class_name": "NobleApolloConfig",
+      "arch_layer": "Other"
+    },
+    {
+      "project": "yuer-chatroom-service",
+      "class_fqn": "com.yupaopao.chatroom.controller.NobleController",
+      "class_name": "NobleController",
+      "arch_layer": "Controller"
+    },
+    {
+      "project": "yuer-chatroom-service",
+      "class_fqn": "com.yupaopao.chatroom.log.BusinessService",
+      "class_name": "BusinessService",
+      "arch_layer": "Other"
+    },
+    {
+      "project": "yuer-chatroom-service",
+      "class_fqn": "com.yupaopao.chatroom.manager.NobleManager",
+      "class_name": "NobleManager",
+      "arch_layer": "Manager"
+    },
+    {
+      "project": "yuer-chatroom-service",
+      "class_fqn": "com.yupaopao.chatroom.service.intf.HomeShowCardService",
+      "class_name": "HomeShowCardService",
+      "arch_layer": "Service"
+    },
+    {
+      "project": "yuer-chatroom-service",
+      "class_fqn": "com.yupaopao.chatroom.service.intf.NobleService",
+      "class_name": "NobleService",
+      "arch_layer": "Service"
+    }
+  ],
+  "dubbo_calls": [],
+  "tables": [
+    {
+      "project": "yuer-chatroom-service",
+      "mapper_fqn": "com.yupaopao.chatroom.mapper.NobleRecordMapper",
+      "mapper_name": "NobleRecordMapper",
+      "table_name": "noble_record"
+    }
+  ],
+  "aries_jobs": [],
+  "mq_info": [],
+  "call_tree": {
+    "node_type": "method",
+    "project": "yuer-chatroom-service",
+    "class_fqn": "com.yupaopao.chatroom.controller.NobleController",
+    "class_name": "NobleController",
+    "method_name": "openNoble",
+    "method_signature": "com.yupaopao.chatroom.controller.NobleController.openNoble(OpenNobleRequest)",
+    "arch_layer": "Controller",
+    "children": [
+      {
+        "node_type": "method",
+        "project": "yuer-chatroom-service",
+        "class_fqn": "com.yupaopao.chatroom.manager.NobleManager",
+        "class_name": "NobleManager",
+        "method_name": "changeNobleInfo",
+        "method_signature": "com.yupaopao.chatroom.manager.NobleManager.changeNobleInfo(UserMembershipChangeInfo)",
+        "arch_layer": "Manager",
+        "children": [
+          {
+            "node_type": "interface",
+            "project": "yuer-chatroom-service",
+            "class_fqn": "com.yupaopao.chatroom.service.intf.HomeShowCardService",
+            "class_name": "HomeShowCardService",
+            "method_name": "collectNoble",
+            "method_signature": "com.yupaopao.chatroom.service.intf.HomeShowCardService.collectNoble(long,int,int,int,Integer)",
+            "arch_layer": "Service",
+            "children": [
+              {
+                "node_type": "method",
+                "project": "yuer-chatroom-service",
+                "class_fqn": "com.yupaopao.chatroom.service.home.HomeShowCardServiceImpl",
+                "class_name": "HomeShowCardServiceImpl",
+                "method_name": "collectNoble",
+                "method_signature": "com.yupaopao.chatroom.service.home.HomeShowCardServiceImpl.collectNoble(long,int,int,int,Integer)",
+                "arch_layer": "Service",
+                "children": [
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.home.HomeShowCardServiceImpl",
+                    "class_name": "HomeShowCardServiceImpl",
+                    "method_name": "addRedisList",
+                    "method_signature": "com.yupaopao.chatroom.service.home.HomeShowCardServiceImpl.addRedisList(HomeShowCardDTO,int)",
+                    "arch_layer": "Service",
+                    "children": []
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.home.HomeShowCardServiceImpl",
+                    "class_name": "HomeShowCardServiceImpl",
+                    "method_name": "concat",
+                    "method_signature": "com.yupaopao.chatroom.service.home.HomeShowCardServiceImpl.concat(...)",
+                    "arch_layer": "Service",
+                    "children": []
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.config.noble.NobleApolloConfig",
+                    "class_name": "NobleApolloConfig",
+                    "method_name": "getSuperKing",
+                    "method_signature": "com.yupaopao.chatroom.config.noble.NobleApolloConfig.getSuperKing()",
+                    "arch_layer": "Other",
+                    "children": []
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.home.HomeShowCardServiceImpl",
+                    "class_name": "HomeShowCardServiceImpl",
+                    "method_name": "toEpochSecond",
+                    "method_signature": "com.yupaopao.chatroom.service.home.HomeShowCardServiceImpl.toEpochSecond(...)",
+                    "arch_layer": "Service",
+                    "children": []
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.home.HomeShowCardServiceImpl",
+                    "class_name": "HomeShowCardServiceImpl",
+                    "method_name": "plusMinutes",
+                    "method_signature": "com.yupaopao.chatroom.service.home.HomeShowCardServiceImpl.plusMinutes(...)",
+                    "arch_layer": "Service",
+                    "children": []
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.home.HomeShowCardServiceImpl",
+                    "class_name": "HomeShowCardServiceImpl",
+                    "method_name": "fillCommon",
+                    "method_signature": "com.yupaopao.chatroom.service.home.HomeShowCardServiceImpl.fillCommon(HomeShowCardDTO,BaseInfo,HomeShowTypeEnum)",
+                    "arch_layer": "Service",
+                    "children": []
+                  },
+                  {
+                    "node_type": "interface",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.intf.BaseInfoService",
+                    "class_name": "BaseInfoService",
+                    "method_name": "getBaseInfo",
+                    "method_signature": "com.yupaopao.chatroom.service.intf.BaseInfoService.getBaseInfo(String)",
+                    "arch_layer": "Service",
+                    "children": []
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.config.noble.NobleApolloConfig",
+                    "class_name": "NobleApolloConfig",
+                    "method_name": "getByLevel",
+                    "method_signature": "com.yupaopao.chatroom.config.noble.NobleApolloConfig.getByLevel(int)",
+                    "arch_layer": "Other",
+                    "children": []
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.manager.UserService",
+                    "class_name": "UserService",
+                    "method_name": "getUserSimpleInfo",
+                    "method_signature": "com.yupaopao.chatroom.manager.UserService.getUserSimpleInfo(int,long,int)",
+                    "arch_layer": "Manager",
+                    "children": []
+                  },
+                  {
+                    "node_type": "interface",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.intf.HeartbeatService",
+                    "class_name": "HeartbeatService",
+                    "method_name": "getHeartbeatInfo",
+                    "method_signature": "com.yupaopao.chatroom.service.intf.HeartbeatService.getHeartbeatInfo(long)",
+                    "arch_layer": "Service",
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "node_type": "interface",
+            "project": "Unknown",
+            "class_fqn": "com.yupaopao.chatroom.service.intf.NobleMessageSendManager",
+            "class_name": "NobleMessageSendManager",
+            "method_name": "sendNobleChangeMessage",
+            "method_signature": "com.yupaopao.chatroom.service.intf.NobleMessageSendManager.sendNobleChangeMessage(...)",
+            "arch_layer": "Other",
+            "children": []
+          },
+          {
+            "node_type": "interface",
+            "project": "yuer-chatroom-service",
+            "class_fqn": "com.yupaopao.chatroom.service.intf.NobleService",
+            "class_name": "NobleService",
+            "method_name": "changeNoble",
+            "method_signature": "com.yupaopao.chatroom.service.intf.NobleService.changeNoble(long,int,int,int,UserMembershipChangeInfo,NobleInfo)",
+            "arch_layer": "Service",
+            "children": [
+              {
+                "node_type": "method",
+                "project": "yuer-chatroom-service",
+                "class_fqn": "com.yupaopao.chatroom.service.NobleServiceImpl",
+                "class_name": "NobleServiceImpl",
+                "method_name": "changeNoble",
+                "method_signature": "com.yupaopao.chatroom.service.NobleServiceImpl.changeNoble(long,int,int,int,UserMembershipChangeInfo,NobleInfo)",
+                "arch_layer": "Service",
+                "children": [
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.NobleServiceImpl",
+                    "class_name": "NobleServiceImpl",
+                    "method_name": "getBulletNumConfig",
+                    "method_signature": "com.yupaopao.chatroom.service.NobleServiceImpl.getBulletNumConfig(int)",
+                    "arch_layer": "Service",
+                    "children": []
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.NobleServiceImpl",
+                    "class_name": "NobleServiceImpl",
+                    "method_name": "addBulletMessageNum",
+                    "method_signature": "com.yupaopao.chatroom.service.NobleServiceImpl.addBulletMessageNum(long,int,long)",
+                    "arch_layer": "Service",
+                    "children": []
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.NobleServiceImpl",
+                    "class_name": "NobleServiceImpl",
+                    "method_name": "hasAuthToAddBullet",
+                    "method_signature": "com.yupaopao.chatroom.service.NobleServiceImpl.hasAuthToAddBullet(int)",
+                    "arch_layer": "Service",
+                    "children": []
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.NobleServiceImpl",
+                    "class_name": "NobleServiceImpl",
+                    "method_name": "handleUserNoble",
+                    "method_signature": "com.yupaopao.chatroom.service.NobleServiceImpl.handleUserNoble(long,int,int,String,int,Integer,Long)",
+                    "arch_layer": "Service",
+                    "children": [
+                      {
+                        "node_type": "db_call",
+                        "project": "yuer-chatroom-service",
+                        "class_fqn": "com.yupaopao.chatroom.mapper.NobleRecordMapper",
+                        "class_name": "NobleRecordMapper",
+                        "method_name": null,
+                        "method_signature": null,
+                        "arch_layer": null,
+                        "children": [],
+                        "table_name": "noble_record",
+                        "mapper_name": "NobleRecordMapper"
+                      }
+                    ]
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.NobleServiceImpl",
+                    "class_name": "NobleServiceImpl",
+                    "method_name": "longValue",
+                    "method_signature": "com.yupaopao.chatroom.service.NobleServiceImpl.longValue(...)",
+                    "arch_layer": "Service",
+                    "children": []
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.NobleServiceImpl",
+                    "class_name": "NobleServiceImpl",
+                    "method_name": "checkTradeSuccess",
+                    "method_signature": "com.yupaopao.chatroom.service.NobleServiceImpl.checkTradeSuccess(String)",
+                    "arch_layer": "Service",
+                    "children": []
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.NobleServiceImpl",
+                    "class_name": "NobleServiceImpl",
+                    "method_name": "getCode",
+                    "method_signature": "com.yupaopao.chatroom.service.NobleServiceImpl.getCode(...)",
+                    "arch_layer": "Service",
+                    "children": []
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.log.BusinessService",
+                    "class_name": "BusinessService",
+                    "method_name": "saveNobleLog",
+                    "method_signature": "com.yupaopao.chatroom.log.BusinessService.saveNobleLog(NobleLogInfo)",
+                    "arch_layer": "Other",
+                    "children": []
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.NobleServiceImpl",
+                    "class_name": "NobleServiceImpl",
+                    "method_name": "addNobleTradeRecord",
+                    "method_signature": "com.yupaopao.chatroom.service.NobleServiceImpl.addNobleTradeRecord(long,String,String,String,BigDecimal,BigDecimal,String,int,int,int,UserMembershipChangeInfo,long,String,Integer)",
+                    "arch_layer": "Service",
+                    "children": [
+                      {
+                        "node_type": "db_call",
+                        "project": "yuer-chatroom-service",
+                        "class_fqn": "com.yupaopao.chatroom.mapper.NobleRecordMapper",
+                        "class_name": "NobleRecordMapper",
+                        "method_name": null,
+                        "method_signature": null,
+                        "arch_layer": null,
+                        "children": [],
+                        "table_name": "noble_record",
+                        "mapper_name": "NobleRecordMapper"
+                      }
+                    ]
+                  },
+                  {
+                    "node_type": "db_call",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.mapper.NobleRecordMapper",
+                    "class_name": "NobleRecordMapper",
+                    "method_name": null,
+                    "method_signature": null,
+                    "arch_layer": null,
+                    "children": [],
+                    "table_name": "noble_record",
+                    "mapper_name": "NobleRecordMapper"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "node_type": "method",
+            "project": "yuer-chatroom-service",
+            "class_fqn": "com.yupaopao.chatroom.manager.NobleManager",
+            "class_name": "NobleManager",
+            "method_name": "isNobleChangeValid",
+            "method_signature": "com.yupaopao.chatroom.manager.NobleManager.isNobleChangeValid(int,int,int,NobleInfo)",
+            "arch_layer": "Manager",
+            "children": [
+              {
+                "node_type": "method",
+                "project": "yuer-chatroom-service",
+                "class_fqn": "com.yupaopao.chatroom.manager.NobleManager",
+                "class_name": "NobleManager",
+                "method_name": "getLevel",
+                "method_signature": "com.yupaopao.chatroom.manager.NobleManager.getLevel(...)",
+                "arch_layer": "Manager",
+                "children": []
+              }
+            ]
+          },
+          {
+            "node_type": "method",
+            "project": "yuer-chatroom-service",
+            "class_fqn": "com.yupaopao.chatroom.manager.NobleManager",
+            "class_name": "NobleManager",
+            "method_name": "getCode",
+            "method_signature": "com.yupaopao.chatroom.manager.NobleManager.getCode(...)",
+            "arch_layer": "Manager",
+            "children": []
+          },
+          {
+            "node_type": "method",
+            "project": "yuer-chatroom-service",
+            "class_fqn": "com.yupaopao.chatroom.manager.NobleManager",
+            "class_name": "NobleManager",
+            "method_name": "validateOpenChannelExchangeUpgrade",
+            "method_signature": "com.yupaopao.chatroom.manager.NobleManager.validateOpenChannelExchangeUpgrade(int,long,int,int,String,NobleInfo)",
+            "arch_layer": "Manager",
+            "children": [
+              {
+                "node_type": "method",
+                "project": "yuer-chatroom-service",
+                "class_fqn": "com.yupaopao.chatroom.config.noble.NobleApolloConfig",
+                "class_name": "NobleApolloConfig",
+                "method_name": "getByCode",
+                "method_signature": "com.yupaopao.chatroom.config.noble.NobleApolloConfig.getByCode(String)",
+                "arch_layer": "Other",
+                "children": []
+              },
+              {
+                "node_type": "interface",
+                "project": "yuer-chatroom-service",
+                "class_fqn": "com.yupaopao.chatroom.service.intf.NobleService",
+                "class_name": "NobleService",
+                "method_name": "isShowExchangeUpgrade",
+                "method_signature": "com.yupaopao.chatroom.service.intf.NobleService.isShowExchangeUpgrade(NobleExchangeUpgradeDTO)",
+                "arch_layer": "Service",
+                "children": [
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.NobleServiceImpl",
+                    "class_name": "NobleServiceImpl",
+                    "method_name": "isShowExchangeUpgrade",
+                    "method_signature": "com.yupaopao.chatroom.service.NobleServiceImpl.isShowExchangeUpgrade(NobleExchangeUpgradeDTO)",
+                    "arch_layer": "Service",
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "node_type": "method",
+        "project": "yuer-chatroom-service",
+        "class_fqn": "com.yupaopao.chatroom.controller.NobleController",
+        "class_name": "NobleController",
+        "method_name": "name",
+        "method_signature": "com.yupaopao.chatroom.controller.NobleController.name(...)",
+        "arch_layer": "Controller",
+        "children": []
+      },
+      {
+        "node_type": "interface",
+        "project": "Unknown",
+        "class_fqn": "com.yupaopao.framework.spring.boot.redis.RedisService",
+        "class_name": "RedisService",
+        "method_name": "buildLock",
+        "method_signature": "com.yupaopao.framework.spring.boot.redis.RedisService.buildLock(...)",
+        "arch_layer": "Other",
+        "children": []
+      },
+      {
+        "node_type": "method",
+        "project": "yuer-chatroom-service",
+        "class_fqn": "com.yupaopao.chatroom.controller.NobleController",
+        "class_name": "NobleController",
+        "method_name": "checkOpenRequest",
+        "method_signature": "com.yupaopao.chatroom.controller.NobleController.checkOpenRequest(OpenNobleRequest,int)",
+        "arch_layer": "Controller",
+        "children": [
+          {
+            "node_type": "interface",
+            "project": "yuer-chatroom-service",
+            "class_fqn": "com.yupaopao.chatroom.service.intf.NobleService",
+            "class_name": "NobleService",
+            "method_name": "getNobleInfoWithNoSuperNoble",
+            "method_signature": "com.yupaopao.chatroom.service.intf.NobleService.getNobleInfoWithNoSuperNoble(long,int)",
+            "arch_layer": "Service",
+            "children": [
+              {
+                "node_type": "method",
+                "project": "yuer-chatroom-service",
+                "class_fqn": "com.yupaopao.chatroom.service.NobleServiceImpl",
+                "class_name": "NobleServiceImpl",
+                "method_name": "getNobleInfoWithNoSuperNoble",
+                "method_signature": "com.yupaopao.chatroom.service.NobleServiceImpl.getNobleInfoWithNoSuperNoble(long,int)",
+                "arch_layer": "Service",
+                "children": [
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.NobleServiceImpl",
+                    "class_name": "NobleServiceImpl",
+                    "method_name": "getRemoteNobleInfo",
+                    "method_signature": "com.yupaopao.chatroom.service.NobleServiceImpl.getRemoteNobleInfo(long,int)",
+                    "arch_layer": "Service",
+                    "children": []
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.NobleServiceImpl",
+                    "class_name": "NobleServiceImpl",
+                    "method_name": "getNobleSimpleInfo",
+                    "method_signature": "com.yupaopao.chatroom.service.NobleServiceImpl.getNobleSimpleInfo(long,int)",
+                    "arch_layer": "Service",
+                    "children": []
+                  },
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.NobleServiceImpl",
+                    "class_name": "NobleServiceImpl",
+                    "method_name": "getNobleSimpleInfo",
+                    "method_signature": "com.yupaopao.chatroom.service.NobleServiceImpl.getNobleSimpleInfo(long,int,List,boolean)",
+                    "arch_layer": "Service",
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "node_type": "interface",
+            "project": "yuer-chatroom-service",
+            "class_fqn": "com.yupaopao.chatroom.service.intf.NobleService",
+            "class_name": "NobleService",
+            "method_name": "getNobleInfo",
+            "method_signature": "com.yupaopao.chatroom.service.intf.NobleService.getNobleInfo(long,int)",
+            "arch_layer": "Service",
+            "children": [
+              {
+                "node_type": "method",
+                "project": "yuer-chatroom-service",
+                "class_fqn": "com.yupaopao.chatroom.service.NobleServiceImpl",
+                "class_name": "NobleServiceImpl",
+                "method_name": "getNobleInfo",
+                "method_signature": "com.yupaopao.chatroom.service.NobleServiceImpl.getNobleInfo(long,int)",
+                "arch_layer": "Service",
+                "children": [
+                  {
+                    "node_type": "method",
+                    "project": "yuer-chatroom-service",
+                    "class_fqn": "com.yupaopao.chatroom.service.NobleServiceImpl",
+                    "class_name": "NobleServiceImpl",
+                    "method_name": "getNobleInfo",
+                    "method_signature": "com.yupaopao.chatroom.service.NobleServiceImpl.getNobleInfo(NobleSimpleInfo,long,int,String)",
+                    "arch_layer": "Service",
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

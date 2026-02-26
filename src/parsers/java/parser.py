@@ -164,7 +164,7 @@ class JavaParser(CodeParser):
         logger.info(f"解析完成: {len(all_classes)} 类, {len(all_methods)} 方法, {len(all_fields)} 字段")
         
         # 转换为统一模型
-        transformer = ASTTransformer(project_info.name, project_info.path)
+        transformer = JavaASTTransformer(project_info.name, project_info.path)
         return transformer.transform_parse_result(
             classes=all_classes,
             methods=all_methods,

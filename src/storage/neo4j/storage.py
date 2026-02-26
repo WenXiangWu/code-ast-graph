@@ -156,6 +156,25 @@ class Neo4jStorage(GraphStorage):
         
         return created_count
     
+    def delete_project(self, project_name: str) -> bool:
+        """删除项目及其所有相关节点和关系"""
+        if not self.is_connected():
+            if not self.connect():
+                raise RuntimeError("无法连接到 Neo4j")
+        try:
+            delete_query = """
+            MATCH (p:Project {name: $project_name})
+            OPTIONAL MATCH (p)-[:CONTAINS*]->(entity)
+            DETACH DELETE entity
+            DETACH DELETE p
+            """
+            self.execute_write(delete_query, {"project_name": project_name})
+            logger.info(f"项目 {project_name} 已删除")
+            return True
+        except Exception as e:
+            logger.error(f"删除项目 {project_name} 失败: {e}", exc_info=True)
+            raise
+
     def project_exists(self, project_name: str) -> bool:
         """检查项目是否存在"""
         if not self.is_connected():
@@ -188,6 +207,18 @@ class Neo4jStorage(GraphStorage):
         # Neo4j 的 session 自动管理事务，异常时自动回滚
         pass
     
+    def _is_neo4j_compatible(self, value: Any) -> bool:
+        """Neo4j 属性仅支持 primitive 或 primitive 数组，不支持 Map/嵌套对象"""
+        if value is None:
+            return False
+        if isinstance(value, (str, int, float, bool)):
+            return True
+        if isinstance(value, list):
+            return all(
+                isinstance(v, (str, int, float, bool)) for v in value
+            )
+        return False
+
     def _create_entity(self, session, entity: CodeEntity):
         """创建单个实体"""
         # 根据实体类型选择标签
@@ -204,9 +235,9 @@ class Neo4jStorage(GraphStorage):
             'project': entity.project
         }
         
-        # 添加元数据（排除 None 值）
+        # 添加元数据（排除 None 值；Neo4j 仅支持 primitive 类型，排除 dict/list of dict）
         for key, value in entity.metadata.items():
-            if value is not None:
+            if value is not None and self._is_neo4j_compatible(value):
                 properties[key] = value
         
         # 根据实体类型使用不同的主键
@@ -523,10 +554,13 @@ class Neo4jStorage(GraphStorage):
                     'target_id': target_id_clean
                 }
         
-        # 添加其他关系属性
-        if rel_properties and rel_type != 'DUBBO_CALLS':  # DUBBO_CALLS 已经在 MERGE 中设置了
-            query += " SET r += $metadata"
-            params['metadata'] = {k: v for k, v in rel_properties.items() if k != 'field_name'}
+        # 添加其他关系属性（仅 primitive 类型）
+        if rel_properties and rel_type != 'DUBBO_CALLS':  # DUBBO_CALLS 已在 MERGE 中设置
+            safe_meta = {k: v for k, v in rel_properties.items()
+                         if k != 'field_name' and self._is_neo4j_compatible(v)}
+            if safe_meta:
+                query += " SET r += $metadata"
+                params['metadata'] = safe_meta
         
         session.run(query, params)
     

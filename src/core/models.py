@@ -12,6 +12,7 @@ from pathlib import Path
 class EntityType(Enum):
     """实体类型枚举"""
     PROJECT = "Project"
+    REPO = "Repo"  # 新增: git仓库节点
     PACKAGE = "Package"
     MODULE = "Module"
     TYPE = "Type"  # Class, Interface, Enum, etc.
@@ -23,13 +24,15 @@ class EntityType(Enum):
     ANNOTATION = "Annotation"  # 注解节点
     MQ_TOPIC = "MQTopic"  # MQ主题节点
     TABLE = "Table"  # 数据库表节点
+    JOB = "Job"  # 新增: 定时/延时任务节点
+    RPC_ENDPOINT = "RpcEndpoint"  # 新增: RPC/HTTP入口节点
 
 
 class RelationshipType(Enum):
     """关系类型枚举"""
     CONTAINS = "CONTAINS"           # 包含关系
-    DEPENDS_ON = "DEPENDS_ON"       # 依赖关系
-    CALLS = "CALLS"                 # 调用关系
+    DEPENDS_ON = "DEPENDS_ON"       # 依赖关系（保留但不再用于调用）
+    CALLS = "CALLS"                 # 普通方法调用（Method->Method，Internal/Resource/Autowired）
     IMPLEMENTS = "IMPLEMENTS"       # 实现关系
     EXTENDS = "EXTENDS"             # 继承关系
     IMPORTS = "IMPORTS"             # 导入关系
@@ -37,11 +40,20 @@ class RelationshipType(Enum):
     RETURNS = "RETURNS"             # 返回类型关系
     HAS_PARAMETER = "HAS_PARAMETER" # 参数关系
     DECLARES = "DECLARES"           # 声明关系（类声明方法/字段）
-    DUBBO_CALLS = "DUBBO_CALLS"     # Dubbo调用关系
-    DUBBO_PROVIDES = "DUBBO_PROVIDES"  # Dubbo服务提供关系
+    DUBBO_CALLS = "DUBBO_CALLS"     # Dubbo方法调用（Method->Method，跨项目RPC调用）
+    DUBBO_DEPENDS = "DUBBO_DEPENDS"    # Dubbo类依赖（Class->Interface，通过@Reference/@DubboReference注入）
+    DUBBO_PROVIDES = "DUBBO_PROVIDES"  # Dubbo服务提供关系（Class->Interface）
     LISTENS_TO_MQ = "LISTENS_TO_MQ"    # MQ监听关系
     SENDS_TO_MQ = "SENDS_TO_MQ"        # MQ发送关系
+    MQ_KAFKA_CONSUMER = "MQ_KAFKA_CONSUMER"       # Class -> MQ_TOPIC (Kafka 消费)
+    MQ_KAFKA_PRODUCER = "MQ_KAFKA_PRODUCER"       # Method -> MQ_TOPIC (Kafka 发送)
+    MQ_ROCKET_CONSUMER = "MQ_ROCKET_CONSUMER"     # Class -> MQ_TOPIC (RocketMQ 消费)
+    MQ_ROCKET_PRODUCER = "MQ_ROCKET_PRODUCER"     # Method -> MQ_TOPIC (RocketMQ 发送)
+    MQ_CONSUMES_METHOD = "MQ_CONSUMES_METHOD"     # MQ_TOPIC -> Method (Topic 由该方法消费)
     MAPPER_FOR_TABLE = "MAPPER_FOR_TABLE"  # Mapper和表的关系
+    ENTITY_FOR_TABLE = "ENTITY_FOR_TABLE"  # 新增: Entity和表的关系
+    EXECUTES_JOB = "EXECUTES_JOB"      # 新增: 方法执行任务
+    EXPOSES = "EXPOSES"                # 新增: 方法暴露RPC入口
 
 
 @dataclass

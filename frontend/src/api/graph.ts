@@ -20,12 +20,13 @@ export async function getProjectGraph(
   maxDepth: number = 3,
   filterMode: string = 'moderate'
 ): Promise<GraphData> {
-  const response = await api.get(`/projects/${projectName}/graph`, {
+  const response = await api.get(`/projects/${encodeURIComponent(projectName)}/graph`, {
     params: { 
-      start_class: startClass, 
+      start_class: startClass || undefined, 
       max_depth: maxDepth,
       filter_mode: filterMode
     },
+    timeout: 120000,
   })
   return response.data
 }

@@ -4,6 +4,7 @@ Git 工具模块 - 支持克隆仓库到 git-repos 目录
 """
 import os
 import re
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional, Dict, Any, Callable, List
@@ -161,7 +162,9 @@ class GitTool:
                 cwd=str(path),
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
+                encoding='utf-8',
+                errors='replace',
             )
             if result.returncode != 0 or not result.stdout:
                 return None
@@ -172,14 +175,18 @@ class GitTool:
                     cwd=str(path),
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=5,
+                    encoding='utf-8',
+                    errors='replace',
                 )
                 branch_result = subprocess.run(
                     ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
                     cwd=str(path),
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=5,
+                    encoding='utf-8',
+                    errors='replace',
                 )
                 return {
                     'commit_hash': parts[0],
@@ -201,7 +208,10 @@ class GitTool:
             return repos
         for item in self.repos_base.iterdir():
             if item.is_dir() and (item / '.git').exists():
-                info = self.get_repo_info(str(item))
+                try:
+                    info = self.get_repo_info(str(item))
+                except Exception:
+                    info = None
                 repos.append({
                     'name': item.name,
                     'path': str(item),
@@ -214,3 +224,24 @@ class GitTool:
                     'branch': info.get('branch', '') if info else '',
                 })
         return repos
+
+    def delete_repo(self, repo_name: str) -> Dict[str, Any]:
+        """删除 git-repos 下的本地仓库"""
+        target = self.repos_base / repo_name
+        if not target.exists():
+            return {'success': False, 'error': f'仓库 {repo_name} 不存在'}
+        if not target.is_dir():
+            return {'success': False, 'error': f'路径不是目录: {target}'}
+        # 确保在 git-repos 目录内，防止误删
+        try:
+            target = target.resolve()
+            base = self.repos_base.resolve()
+            if not str(target).startswith(str(base)):
+                return {'success': False, 'error': '路径不在 git-repos 目录内'}
+        except Exception:
+            return {'success': False, 'error': '路径校验失败'}
+        try:
+            shutil.rmtree(target)
+            return {'success': True, 'message': f'仓库 {repo_name} 已删除'}
+        except Exception as e:
+            return {'success': False, 'error': str(e)}

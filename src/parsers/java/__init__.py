@@ -4,9 +4,11 @@ Java 解析器
 """
 
 from .parser import JavaParser
+from .parser_v2 import JavaParserV2
 from .config import JavaParserConfig, get_java_parser_config, get_python_ast_config
 from .transformer import JavaASTTransformer
 from .scanner import JavaASTScanner
+from .scanner_v2 import JavaASTScannerV2
 
 # 注意：不再导出旧名称，请使用新名称
 # PythonASTParser = JavaParser  # 已移除，请使用 JavaParser
@@ -16,9 +18,11 @@ from .scanner import JavaASTScanner
 
 __all__ = [
     'JavaParser',
+    'JavaParserV2',
     'JavaParserConfig',
     'JavaASTTransformer',
     'JavaASTScanner',
+    'JavaASTScannerV2',
     'get_java_parser_config',
     # 兼容性导出
     'PythonASTParser',

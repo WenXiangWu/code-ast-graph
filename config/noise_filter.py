@@ -50,6 +50,16 @@ DTO_SUFFIXES = [
     'Result',
 ]
 
+# 常见基础设施/噪音类名（精确匹配或包含）
+NOISE_CLASS_NAMES = [
+    'Code',       # 枚举/状态码
+    'Log',        # 日志
+    'Logger',
+    'Constants',
+    'BaseEntity',
+    'BaseVO',
+]
+
 # 常见实体类后缀（可选，根据业务需要决定是否过滤）
 ENTITY_SUFFIXES = [
     'Entity',
@@ -127,17 +137,25 @@ def is_noise_class(fqn: str, class_name: str, filter_mode: str = 'moderate') -> 
         if class_name.endswith(suffix):
             return True
     
-    # 5. DTO/VO（只在严格模式过滤）
-    if filter_mode == 'strict':
+    # 5. 基础设施噪音类名（moderate 和 strict 都过滤）
+    if filter_mode in ['moderate', 'strict']:
+        for noise_name in NOISE_CLASS_NAMES:
+            if class_name == noise_name:
+                return True
+    
+    # 6. DTO/VO/Response 等（moderate 和 strict 都过滤）
+    if filter_mode in ['moderate', 'strict']:
         for suffix in DTO_SUFFIXES:
             if class_name.endswith(suffix):
                 return True
-        
+    
+    # 7. Entity 后缀（只在严格模式过滤）
+    if filter_mode == 'strict':
         for suffix in ENTITY_SUFFIXES:
             if class_name.endswith(suffix):
                 return True
     
-    # 6. 业务核心类，保留
+    # 8. 业务核心类，保留
     for keyword in BUSINESS_KEYWORDS:
         if keyword in class_name:
             return False

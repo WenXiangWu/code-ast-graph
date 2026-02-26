@@ -28,7 +28,19 @@ class Neo4jQuerier:
         # 兼容性：保留 client 属性
         self.client = storage
     
-    async def get_call_graph(
+    def get_call_graph_sync(
+        self,
+        project: str,
+        start_class: Optional[str] = None,
+        max_depth: int = 3,
+        filter_mode: str = 'moderate'
+    ) -> Dict:
+        """
+        同步获取调用图，供 run_in_executor 使用，避免阻塞事件循环
+        """
+        return self._do_get_call_graph(project, start_class, max_depth, filter_mode)
+
+    def _do_get_call_graph(
         self,
         project: str,
         start_class: Optional[str] = None,
@@ -179,6 +191,21 @@ class Neo4jQuerier:
                 'total_edges': 0,
                 'error': str(e)
             }
+
+    async def get_call_graph(
+        self,
+        project: str,
+        start_class: Optional[str] = None,
+        max_depth: int = 3,
+        filter_mode: str = 'moderate'
+    ) -> Dict:
+        """异步封装：在线程池中执行同步查询"""
+        import asyncio
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            lambda: self.get_call_graph_sync(project, start_class, max_depth, filter_mode),
+        )
     
     async def get_database_schema(self, project: str) -> Dict:
         """

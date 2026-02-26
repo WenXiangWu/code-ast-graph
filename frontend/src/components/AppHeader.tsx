@@ -1,6 +1,6 @@
 import { Layout, Menu } from 'antd'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ProjectOutlined, SearchOutlined, NodeIndexOutlined } from '@ant-design/icons'
+import { ProjectOutlined, SearchOutlined, NodeIndexOutlined, ApiOutlined, FileTextOutlined } from '@ant-design/icons'
 
 const { Header } = Layout
 
@@ -18,7 +18,17 @@ const menuItems = [
   {
     key: '/visualization',
     icon: <NodeIndexOutlined />,
-    label: '可视化',
+    label: '图谱设计',
+  },
+  {
+    key: '/mcp',
+    icon: <ApiOutlined />,
+    label: 'MCP 查询',
+  },
+  {
+    key: '/api-docs',
+    icon: <FileTextOutlined />,
+    label: 'API Docs',
   },
 ]
 
@@ -32,12 +42,14 @@ export default function AppHeader() {
       borderBottom: '1px solid #334155',
       display: 'flex',
       alignItems: 'center',
-      padding: '0 24px'
+      padding: '0 24px',
+      height: 64,
+      minHeight: 64,
     }}>
       <div style={{ 
         color: '#e2e8f0', 
-        fontSize: '20px', 
-        fontWeight: 'bold',
+        fontSize: '22px', 
+        fontWeight: 600,
         marginRight: '48px'
       }}>
         🗺️ Code AST Graph
@@ -51,7 +63,10 @@ export default function AppHeader() {
         style={{ 
           background: 'transparent',
           borderBottom: 'none',
-          flex: 1
+          flex: 1,
+          fontSize: 18,
+          minHeight: 64,
+          lineHeight: '64px',
         }}
       />
     </Header>

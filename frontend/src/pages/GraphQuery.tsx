@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Card, Select, Input, Button, Space, message, Spin, Radio } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import { useQuery } from '@tanstack/react-query'
-import { getProjects } from '../api/projects'
+import { getRepos } from '../api/projects'
 import { getProjectGraph } from '../api/graph'
 import { Network } from 'vis-network'
 import { DataSet } from 'vis-data'
@@ -16,15 +16,21 @@ export default function GraphQuery() {
   const networkRef = useRef<HTMLDivElement>(null)
   const networkInstance = useRef<Network | null>(null)
 
-  const { data: projectsData } = useQuery({
-    queryKey: ['projects'],
-    queryFn: getProjects,
+  const { data: reposData } = useQuery({
+    queryKey: ['repos'],
+    queryFn: getRepos,
   })
 
-  const { data: graphData, isLoading, refetch } = useQuery({
+  // 仅展示已构建的项目（与 Neo4j 中的项目一致）
+  const projectOptions = (reposData?.repos || [])
+    .filter((r) => r.scanned_commit_id)
+    .map((r) => ({ label: r.name, value: r.name }))
+
+  const { data: graphData, isLoading, isError: graphError, error: graphErrorDetail, refetch } = useQuery({
     queryKey: ['projectGraph', selectedProject, startClass, maxDepth, filterMode],
     queryFn: () => getProjectGraph(selectedProject, startClass, maxDepth, filterMode),
     enabled: shouldQuery && !!selectedProject,
+    retry: 1,
   })
 
   // 当图数据变化时，渲染可视化
@@ -127,30 +133,23 @@ export default function GraphQuery() {
 
   return (
     <div className="app-container">
-      <div className="page-header">
-        <h1>🔍 图谱查询</h1>
-        <p>查询项目的调用关系和依赖关系</p>
-      </div>
-
       <Card style={{ marginBottom: 24 }}>
         <Space direction="vertical" style={{ width: '100%' }} size="large">
           <div>
-            <label style={{ display: 'block', marginBottom: 8, color: '#e2e8f0' }}>
+            <label style={{ display: 'block', marginBottom: 8, color: '#334155', fontSize: 15, fontWeight: 500 }}>
               选择项目
             </label>
             <Select
               style={{ width: '100%' }}
-              placeholder="选择项目"
+              placeholder={projectOptions.length ? '选择项目' : '暂无已构建项目，请先在项目管理中构建'}
               value={selectedProject}
               onChange={setSelectedProject}
-              options={projectsData?.projects?.map((p: any) => ({
-                label: p.name,
-                value: p.name,
-              }))}
+              options={projectOptions}
+              notFoundContent="暂无已构建项目，请先在项目管理中构建"
             />
           </div>
           <div>
-            <label style={{ display: 'block', marginBottom: 8, color: '#e2e8f0' }}>
+            <label style={{ display: 'block', marginBottom: 8, color: '#334155', fontSize: 15, fontWeight: 500 }}>
               起始类（可选）
             </label>
             <Input
@@ -160,7 +159,7 @@ export default function GraphQuery() {
             />
           </div>
           <div>
-            <label style={{ display: 'block', marginBottom: 8, color: '#e2e8f0' }}>
+            <label style={{ display: 'block', marginBottom: 8, color: '#334155', fontSize: 15, fontWeight: 500 }}>
               最大深度
             </label>
             <Select
@@ -174,7 +173,7 @@ export default function GraphQuery() {
             />
           </div>
           <div>
-            <label style={{ display: 'block', marginBottom: 8, color: '#e2e8f0' }}>
+            <label style={{ display: 'block', marginBottom: 8, color: '#334155', fontSize: 15, fontWeight: 500 }}>
               过滤模式
             </label>
             <Radio.Group 
@@ -187,7 +186,7 @@ export default function GraphQuery() {
               <Radio.Button value="moderate">适中（推荐）</Radio.Button>
               <Radio.Button value="strict">严格</Radio.Button>
             </Radio.Group>
-            <div style={{ marginTop: 8, fontSize: 12, color: '#94a3b8' }}>
+            <div style={{ marginTop: 8, fontSize: 14, color: '#64748b' }}>
               {filterMode === 'none' && '显示所有依赖，包括工具类和DTO'}
               {filterMode === 'loose' && '只过滤JDK核心类（如String、List等）'}
               {filterMode === 'moderate' && '过滤JDK和常见工具类（推荐使用）'}
@@ -210,30 +209,43 @@ export default function GraphQuery() {
         <Card>
           <div style={{ textAlign: 'center', padding: '40px' }}>
             <Spin size="large" />
-            <p style={{ marginTop: 16, color: '#94a3b8' }}>正在查询图谱数据...</p>
+            <p style={{ marginTop: 16, color: '#64748b', fontSize: 15 }}>正在查询图谱数据，大项目可能需要较长时间...</p>
           </div>
         </Card>
       )}
 
-      {graphData && !isLoading && (
+      {graphError && shouldQuery && (
+        <Card>
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <p style={{ color: '#dc2626', fontSize: 16 }}>
+              查询失败：{String(graphErrorDetail instanceof Error ? graphErrorDetail.message : (graphErrorDetail as any)?.response?.data?.detail || '未知错误')}
+            </p>
+            <Button type="primary" onClick={() => refetch()} style={{ marginTop: 16 }}>
+              重试
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {graphData && !isLoading && !graphError && (
         <>
           <Card title="📊 查询结果" style={{ marginBottom: 24 }}>
             <Space size="large">
               <div>
-                <span style={{ color: '#94a3b8' }}>节点数：</span>
+                <span style={{ color: '#64748b', fontSize: 15 }}>节点数：</span>
                 <span style={{ color: '#3b82f6', fontSize: 20, fontWeight: 'bold' }}>
                   {graphData.total_nodes}
                 </span>
               </div>
               <div>
-                <span style={{ color: '#94a3b8' }}>边数：</span>
+                <span style={{ color: '#64748b', fontSize: 15 }}>边数：</span>
                 <span style={{ color: '#10b981', fontSize: 20, fontWeight: 'bold' }}>
                   {graphData.total_edges}
                 </span>
               </div>
               {graphData.filtered_count > 0 && (
                 <div>
-                  <span style={{ color: '#94a3b8' }}>已过滤：</span>
+                  <span style={{ color: '#64748b', fontSize: 15 }}>已过滤：</span>
                   <span style={{ color: '#f59e0b', fontSize: 20, fontWeight: 'bold' }}>
                     {graphData.filtered_count}
                   </span>
@@ -248,12 +260,12 @@ export default function GraphQuery() {
               style={{
                 width: '100%',
                 height: '600px',
-                border: '1px solid #334155',
+                border: '1px solid #e2e8f0',
                 borderRadius: '8px',
-                background: '#1e293b',
+                background: '#ffffff',
               }}
             />
-            <div style={{ marginTop: 16, color: '#94a3b8', fontSize: 12 }}>
+            <div style={{ marginTop: 16, color: '#64748b', fontSize: 14 }}>
               💡 提示：
               <ul style={{ marginTop: 8, paddingLeft: 20 }}>
                 <li>拖拽画布移动视图</li>
@@ -266,13 +278,13 @@ export default function GraphQuery() {
         </>
       )}
 
-      {graphData && graphData.total_nodes === 0 && !isLoading && (
+      {graphData && graphData.total_nodes === 0 && !isLoading && !graphError && (
         <Card>
           <div style={{ textAlign: 'center', padding: '40px' }}>
-            <p style={{ color: '#94a3b8', fontSize: 16 }}>
+            <p style={{ color: '#475569', fontSize: 16 }}>
               未找到相关的依赖关系
             </p>
-            <p style={{ color: '#64748b', fontSize: 14, marginTop: 8 }}>
+            <p style={{ color: '#64748b', fontSize: 15, marginTop: 8 }}>
               {startClass ? '请尝试其他类名或不指定起始类' : '该项目可能没有依赖关系数据'}
             </p>
           </div>
