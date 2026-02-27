@@ -175,9 +175,23 @@ results = querier.find_type_dependencies("UserService")
 - [快速开始指南](docs/QUICK_START.md)
 - [架构设计](docs/ARCHITECTURE.md)
 - [配置管理](docs/CONFIG_MANAGEMENT.md)
-- [查询示例](docs/QUERY_EXAMPLES.md)
+- [MCP 标准化查询接口](docs/MCP接口说明.md)
+- [增量更新与扫描说明](docs/INCREMENTAL_UPDATE.md)
+- [Neo4j 故障排查](docs/NEO4J_TROUBLESHOOTING.md)
 - [前端文档](README_FRONTEND.md)
 - [后端文档](README_BACKEND.md)
+
+## 🧠 MCP 标准化查询接口简介
+
+Code AST Graph 提供标准化的 MCP 查询接口，统一封装调用链、表、MQ 等架构信息，默认通过 FastAPI 暴露为 `POST /api/mcp/query`，详细参数与返回结构见 [MCP 标准化查询接口](docs/MCP接口说明.md)。
+
+在技术方案生成场景中，可以直接从前端页面或其他 Agent 调用该接口，获取某个项目中某个类/方法的完整上下游调用关系、涉及表、Dubbo 调用、MQ topic 等信息。
+
+## 🔗 与 code-index-demo 的关系
+
+本项目只负责**代码知识图谱的构建与查询**（Neo4j），**不包含代码向量搜索/语义检索能力**。如果需要根据自然语言需求在代码仓库中做语义搜索，请使用配套项目 `code-index-demo`。
+
+典型的技术方案生成流程是：先由 `code-index-demo` 做语义搜索定位候选类/方法，再调用本项目的 MCP 接口（或图谱查询 API）做全链路分析，两者组合可以产出更完整的“现状分析 + 调用链 + 数据流”信息。
 
 ## 🔧 开发
 
