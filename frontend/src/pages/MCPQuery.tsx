@@ -7,7 +7,7 @@ import { JsonView, defaultStyles } from 'react-json-view-lite'
 import 'react-json-view-lite/dist/index.css'
 import './MCPQuery.css'
 
-const { Title, Text } = Typography
+const { Text } = Typography
 const { TabPane } = Tabs
 
 interface CallNode {
@@ -423,7 +423,7 @@ function MCPQuery() {
               style={{ width: 250 }}
               showSearch
               filterOption={(input, option) =>
-                (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
+                (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
               }
             >
               {projects.map(p => (

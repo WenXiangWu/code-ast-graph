@@ -1,0 +1,40 @@
+# ============================================================
+# code-ast-graph 前端镜像（多阶段构建）
+# Stage 1: Node.js 构建静态文件
+# Stage 2: Nginx 提供服务 + 代理 /api 到后端
+# ============================================================
+
+# ---------- Stage 1: 构建 ----------
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# 先复制 package.json，利用层缓存
+COPY frontend/package*.json ./frontend/
+# 复制根目录 .env（vite.config.ts 会读取）
+COPY .env* ./
+
+WORKDIR /app/frontend
+RUN npm ci --prefer-offline
+
+# 复制前端源码并构建
+COPY frontend/ .
+# 在 Docker 内构建时，代理由 Nginx 处理，无需 Vite dev proxy
+# 设置生产模式
+RUN npm run build
+
+# ---------- Stage 2: 运行时（Nginx）----------
+FROM nginx:1.25-alpine
+
+# 删除默认站点
+RUN rm -f /etc/nginx/conf.d/default.conf
+
+# 复制 Nginx 配置
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# 复制构建产物
+COPY --from=builder /app/frontend/dist /usr/share/nginx/html
+
+EXPOSE 3000
+
+CMD ["nginx", "-g", "daemon off;"]
