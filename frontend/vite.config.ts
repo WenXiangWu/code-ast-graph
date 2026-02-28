@@ -9,8 +9,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 export default defineConfig(({ mode }) => {
   const root = path.resolve(__dirname, '..')
   const env = loadEnv(mode, root, '')
-  const backendPort = env.BACKEND_PORT || '8000'
-  const frontendPort = env.FRONTEND_PORT || '3000'
+  const backendPort = env.BACKEND_PORT || '18000'
+  const frontendPort = env.FRONTEND_PORT || '3001'
 
   return {
     plugins: [react()],
