@@ -215,60 +215,6 @@ class MCPQueryResult:
         return result
 
 
-def collect_call_statistics(result: MCPQueryResult) -> dict:
-    """
-    从 MCP 查询结果中汇总「调用统计」JSON，与前端 collectCallStatistics 结构一致。
-    用于对外接口直接返回调用统计。
-    
-    Returns:
-        {
-            "class_stats": [ {"class": fqn, "call_count": n, "methods": [...], "project": "..."} ],
-            "tables": [ "table_a", ... ],
-            "mq_list": [ "topic1", ... ],
-            "frontend_entries": [ {"project", "class_fqn", "method", "path", "http_method"}, ... ]
-        }
-    """
-    class_map: Dict[str, dict] = {}  # fqn -> { count, methods set, project }
-    tables_set = set()
-    mq_list_set = set()
-
-    def walk(node: CallNode):
-        if node.node_type in ('method', 'interface', 'aries_job') and node.class_fqn:
-            key = node.class_fqn
-            if key not in class_map:
-                class_map[key] = {'count': 0, 'methods': set(), 'project': node.project or ''}
-            class_map[key]['count'] += 1
-            if node.method_name:
-                class_map[key]['methods'].add(node.method_name)
-        if node.node_type == 'db_call' and node.table_name:
-            tables_set.add(node.table_name)
-        if node.node_type == 'mq' and node.mq_topic:
-            mq_list_set.add(node.mq_topic)
-        for child in node.children or []:
-            walk(child)
-
-    if result.call_tree:
-        walk(result.call_tree)
-
-    class_stats = [
-        {
-            'class': cls,
-            'call_count': v['count'],
-            'methods': sorted(v['methods']),
-            'project': v['project'],
-        }
-        for cls, v in class_map.items()
-    ]
-    class_stats.sort(key=lambda x: -x['call_count'])
-
-    return {
-        'class_stats': class_stats,
-        'tables': sorted(tables_set),
-        'mq_list': sorted(mq_list_set),
-        'frontend_entries': [asdict(e) for e in result.endpoints],
-    }
-
-
 class MCPQuerier:
     """MCP 标准化查询器"""
     
@@ -451,11 +397,9 @@ class MCPQuerier:
     
     def _find_implementation_methods(self, interface_method_sig: str) -> List[str]:
         """
-        查找接口方法的所有实现类方法。
-        支持完整签名与 scanner 生成的简化签名（class_fqn.methodName(...)），
-        否则通过接口扫描得到的完整签名无法匹配，导致实现类（如 RewardServiceImpl.rewardGift）不会出现在树中。
+        查找接口方法的所有实现类方法
+        如果不是接口方法，返回空列表
         """
-        # 先按完整签名匹配
         result = self.storage.execute_query("""
             MATCH (iface:INTERFACE)-[:DECLARES]->(iface_method:Method {signature: $method_sig})
             MATCH (impl_class:CLASS)-[:IMPLEMENTS]->(iface)
@@ -463,30 +407,12 @@ class MCPQuerier:
             WHERE impl_method.name = iface_method.name
             RETURN DISTINCT impl_method.signature as impl_signature
         """, {'method_sig': interface_method_sig})
+        
         impl_methods = [r['impl_signature'] for r in result]
-
-        # 若未命中且为简化签名（xxx.methodName(...)），按「接口 FQN + 方法名」再查一次
-        if not impl_methods and interface_method_sig.endswith('(...)'):
-            # 解析出 class_fqn 与 method_name，例如 com.xxx.RewardService.rewardGift(...) -> RewardService FQN + rewardGift
-            parts = interface_method_sig[:-5].rsplit('.', 1)  # 去掉 '(...)'
-            if len(parts) == 2:
-                iface_fqn, method_name = parts[0], parts[1]
-                result = self.storage.execute_query("""
-                    MATCH (iface:INTERFACE)
-                    WHERE iface.fqn = $iface_fqn
-                    MATCH (iface)-[:DECLARES]->(iface_method:Method)
-                    WHERE iface_method.name = $method_name
-                    MATCH (impl_class:CLASS)-[:IMPLEMENTS]->(iface)
-                    MATCH (impl_class)-[:DECLARES]->(impl_method:Method)
-                    WHERE impl_method.name = iface_method.name
-                    RETURN DISTINCT impl_method.signature as impl_signature
-                """, {'iface_fqn': iface_fqn, 'method_name': method_name})
-                impl_methods = [r['impl_signature'] for r in result]
-                if impl_methods:
-                    logger.info(f"通过简化签名解析到接口 {iface_fqn}.{method_name}，找到 {len(impl_methods)} 个实现类方法")
-
+        
         if impl_methods:
             logger.info(f"接口方法 {interface_method_sig} 有 {len(impl_methods)} 个实现类方法")
+        
         return impl_methods
     
     def _find_start_method(self, project: str, class_fqn: str, method: str) -> Optional[str]:
@@ -954,23 +880,42 @@ class MCPQuerier:
         can_expand = current_depth < max_depth
 
         # 如果是接口方法，为每个实现类创建子树
+        # 使用 visited 副本（路径级循环检测）：允许同一实现类在不同分支中独立展开，
+        # 同时仍防止单条路径内的无限递归
         if is_interface and can_expand:
             impl_methods = self._find_implementation_methods(method_sig)
             for impl_sig in impl_methods:
-                if impl_sig not in visited:
-                    impl_tree = self._build_call_tree(impl_sig, current_depth + 1, max_depth, visited)
+                if impl_sig not in visited:  # 只防止当前路径内的循环
+                    impl_tree = self._build_call_tree(impl_sig, current_depth + 1, max_depth, set(visited))
                     if impl_tree:
                         root.children.append(impl_tree)
 
         # 1. 查询 Dubbo 调用
+        # 策略：先通过 IMPLEMENTS 关系找实现类；若 IMPLEMENTS 因扫描 FQN 冲突丢失，
+        # 则回退到：从接口所属项目中按方法名直接匹配实现类（CLASS 且非 INTERFACE）
         dubbo_result = self.storage.execute_query("""
             MATCH (m:Method {signature: $method_sig})-[dubbo_rel:DUBBO_CALLS]->(dubbo_iface_method:Method)
             MATCH (dubbo_iface:INTERFACE)-[:DECLARES]->(dubbo_iface_method)
-            OPTIONAL MATCH (impl_class:CLASS)-[:IMPLEMENTS]->(dubbo_iface)
-            OPTIONAL MATCH (impl_class)-[:DECLARES]->(impl_method:Method)
-            WHERE impl_method IS NULL OR impl_method.name = dubbo_iface_method.name
-            OPTIONAL MATCH (impl_project:Project)-[:CONTAINS]->(impl_class)
             OPTIONAL MATCH (iface_project:Project)-[:CONTAINS]->(dubbo_iface)
+
+            // 主路径：通过 IMPLEMENTS 关系找实现类
+            OPTIONAL MATCH (impl_class_via_impl:CLASS)-[:IMPLEMENTS]->(dubbo_iface)
+            WITH dubbo_iface, dubbo_iface_method, dubbo_rel, iface_project, impl_class_via_impl
+            OPTIONAL MATCH (impl_class_via_impl)-[:DECLARES]->(impl_method_via_impl:Method)
+                WHERE impl_method_via_impl.name = dubbo_iface_method.name
+
+            // 回退路径：IMPLEMENTS 缺失时，从接口所属项目中按方法名查实现类
+            WITH dubbo_iface, dubbo_iface_method, dubbo_rel, iface_project,
+                 impl_class_via_impl, impl_method_via_impl
+            OPTIONAL MATCH (iface_project)-[:CONTAINS]->(fallback_class:CLASS)-[:DECLARES]->(fallback_method:Method)
+                WHERE impl_class_via_impl IS NULL
+                  AND fallback_method.name = dubbo_iface_method.name
+
+            WITH dubbo_iface, dubbo_iface_method, dubbo_rel, iface_project,
+                 COALESCE(impl_class_via_impl, fallback_class) AS impl_class,
+                 COALESCE(impl_method_via_impl, fallback_method) AS impl_method
+
+            OPTIONAL MATCH (impl_project:Project)-[:CONTAINS]->(impl_class)
             RETURN DISTINCT
                 dubbo_iface.fqn as dubbo_interface,
                 dubbo_iface_method.name as dubbo_method,
@@ -981,31 +926,40 @@ class MCPQuerier:
                 impl_class.name as impl_class_name,
                 iface_project.name as iface_project
         """, {'method_sig': method_sig})
+
+        logger.info(f"[depth={current_depth}] Dubbo调用数: {len(dubbo_result)} | {method_sig[-80:]}")
         
         for dr in dubbo_result:
+            impl_sig = dr.get('impl_signature')
+
+            # FQN 冲突时，同一节点可能同时具有 IMPLEMENTS 和 DUBBO_CALLS，
+            # impl_sig 已在 visited 说明产生了循环，跳过此 dubbo_node
+            if impl_sig and impl_sig in visited:
+                continue
+
             # 创建 Dubbo 调用节点
-            # 如果有实现类，使用实现类信息；否则使用接口信息
+            # 项目归属优先用 iface_project（接口所属项目，语义最准确）
             dubbo_node = CallNode(
                 node_type='dubbo_call',
-                project=dr['impl_project'] or dr['iface_project'] or 'External',
+                project=dr['iface_project'] or dr['impl_project'] or 'External',
                 class_fqn=dr['impl_class_fqn'] or dr['dubbo_interface'],
                 class_name=dr['impl_class_name'] or dr['dubbo_interface'].split('.')[-1],
                 dubbo_interface=dr['dubbo_interface'],
                 dubbo_method=dr['dubbo_method'],
                 via_field=dr['via_field']
             )
-            
+
             # 递归查询下游实现类方法（如果有）
             if can_expand:
-                impl_sig = dr.get('impl_signature')
                 if impl_sig and impl_sig not in visited:
-                    impl_tree = self._build_call_tree(impl_sig, current_depth + 1, max_depth, visited)
+                    logger.info(f"[depth={current_depth}] Dubbo递归到: {impl_sig[-80:]}")
+                    impl_tree = self._build_call_tree(impl_sig, current_depth + 1, max_depth, set(visited))
                     if impl_tree:
                         dubbo_node.children.append(impl_tree)
 
             root.children.append(dubbo_node)
 
-        # 2. 查询内部方法调用（放宽：不按项目过滤，避免同仓库多模块时漏掉 Service 等；提高 LIMIT 避免截断核心下游）
+        # 2. 查询内部方法调用（放宽：不按项目过滤，避免同仓库多模块时漏掉 Service 等）
         calls_result = self.storage.execute_query("""
             MATCH (m:Method {signature: $method_sig})-[:CALLS]->(called_method:Method)
             MATCH (called_class)-[:DECLARES]->(called_method)
@@ -1019,13 +973,16 @@ class MCPQuerier:
                 called_method.name as called_method_name
             LIMIT 80
         """, {'method_sig': method_sig})
+
+        logger.info(f"[depth={current_depth}] 直接CALLS数: {len(calls_result)} | {method_sig[-80:]}")
         
         for cr in calls_result:
             if not can_expand:
                 break
             called_sig = cr['called_signature']
             if called_sig and called_sig not in visited:
-                child_tree = self._build_call_tree(called_sig, current_depth + 1, max_depth, visited)
+                # 传副本：路径级循环检测，同一方法可在不同分支展开
+                child_tree = self._build_call_tree(called_sig, current_depth + 1, max_depth, set(visited))
                 if child_tree:
                     root.children.append(child_tree)
 
@@ -1086,3 +1043,80 @@ class MCPQuerier:
             aries_jobs=[],
             mq_info=[]
         )
+
+
+def collect_call_statistics(result: MCPQueryResult) -> dict:
+    """
+    从MCPQueryResult提取调用统计信息
+    
+    Args:
+        result: MCPQueryResult 查询结果
+    
+    Returns:
+        包含 class_stats, tables, mq_list, frontend_entries 的字典
+    """
+    # 1. 类统计（按项目和架构层分组）
+    class_stats = []
+    for ic in result.internal_classes:
+        class_stats.append({
+            "project": ic.project,
+            "class_fqn": ic.class_fqn,
+            "class_name": ic.class_name,
+            "arch_layer": ic.arch_layer
+        })
+    
+    # 2. 表统计
+    tables = []
+    for t in result.tables:
+        tables.append({
+            "project": t.project,
+            "mapper_fqn": t.mapper_fqn,
+            "mapper_name": t.mapper_name,
+            "table_name": t.table_name
+        })
+    
+    # 3. MQ统计
+    mq_list = []
+    for m in result.mq_info:
+        mq_list.append({
+            "project": m.project,
+            "class_fqn": m.class_fqn,
+            "class_name": m.class_name,
+            "mq_type": m.mq_type,
+            "topic": m.topic,
+            "role": m.role,
+            "method": m.method
+        })
+    
+    # 4. 前端入口统计
+    frontend_entries = []
+    for ep in result.endpoints:
+        frontend_entries.append({
+            "project": ep.project,
+            "class_fqn": ep.class_fqn,
+            "method": ep.method,
+            "path": ep.path,
+            "http_method": ep.http_method
+        })
+    
+    # 5. Dubbo调用统计
+    dubbo_calls = []
+    for dc in result.dubbo_calls:
+        dubbo_calls.append({
+            "caller_project": dc.caller_project,
+            "caller_class": dc.caller_class,
+            "caller_method": dc.caller_method,
+            "dubbo_interface": dc.dubbo_interface,
+            "dubbo_method": dc.dubbo_method,
+            "via_field": dc.via_field,
+            "target_project": dc.target_project
+        })
+    
+    return {
+        "class_stats": class_stats,
+        "tables": tables,
+        "mq_list": mq_list,
+        "frontend_entries": frontend_entries,
+        "dubbo_calls": dubbo_calls,
+        "message": result.message
+    }
