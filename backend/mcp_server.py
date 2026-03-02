@@ -1,23 +1,24 @@
 """
-Code AST Graph MCP Server（基于 FastMCP + Streamable HTTP）
+Code-AST-Graph MCP Server
 
-提供知识图谱查询工具：
-- ast_list_projects        ：列出所有已扫描项目
-- ast_query_call_chain     ：查询完整调用链路（含 Dubbo/MQ/DB/前端入口）
-- ast_query_call_stats     ：仅返回调用统计摘要（轻量）
-- ast_get_call_graph       ：获取项目调用关系图（节点 + 边）
-- ast_grep_search          ：通过关键字在 git-repos 目录下搜索代码
-- ast_read_class_file      ：按项目 + 类名读取完整源文件（智能查找）
-- ast_read_file            ：按文件路径读取文件内容
-- ast_list_files           ：列出项目目录下的文件列表
+提供代码知识图谱查询与源码检索工具：
+
+图谱查询：
+- ast_list_projects     ：列出已扫描项目
+- ast_query_call_chain  ：查询完整调用链路（含 Dubbo/MQ/DB）
+- ast_query_call_stats  ：查询调用统计摘要
+- ast_get_call_graph    ：获取调用关系图
+
+源码检索：
+- ast_grep_search       ：关键字搜索代码（类似 grep）
+- ast_glob_files        ：glob 模式匹配文件并返回内容
+- ast_read_class_file   ：按项目+类名读取源文件
+- ast_read_file         ：按路径读取文件
+- ast_list_files        ：列出项目目录文件
 
 启动方式：
-  HTTP Streamable（推荐）：
-      python -m backend.mcp_server --port 18086
-    访问入口：http://<host>:18086/mcp
-
-  stdio（默认）：
-      python -m backend.mcp_server
+  HTTP: python -m backend.mcp_server --port 18086
+  stdio: python -m backend.mcp_server
 """
 
 import json
@@ -93,11 +94,10 @@ def _ensure_connected() -> bool:
 
 @mcp.tool()
 async def ast_list_projects() -> str:
-    """列出 Neo4j 中所有已扫描的项目，返回 JSON 字符串。
+    """列出 Neo4j 中已扫描的项目。
 
-    返回格式：
-        {"projects": [{"name": "xxx", "path": "...", "scanned_at": "..."}], "total": 3}
-    """
+    Returns:
+        JSON: {"projects": [{"name", "path", "scanned_at"}], "total"}"""
     if not _ensure_connected():
         return json.dumps({"projects": [], "total": 0, "error": "Neo4j 未连接"}, ensure_ascii=False)
     try:
@@ -135,16 +135,16 @@ async def ast_query_call_chain(
     method: str,
     max_depth: int = 10,
 ) -> str:
-    """查询指定方法的完整调用链路，返回 JSON 字符串。
-
-    包含：调用树、Dubbo 跨服务调用、数据库表操作、MQ 消息、前端 HTTP 入口。
+    """查询指定方法的完整调用链路，包含 Dubbo/MQ/DB/HTTP 入口。
 
     Args:
-        project:   项目名称（如 "user-service"）
-        class_fqn: 类全限定名（如 "com.example.service.UserService"）
-        method:    方法名（如 "createUser"）
+        project: 项目名称（如 "user-service"）
+        class_fqn: 类全限定名（如 "com.example.UserService"）
+        method: 方法名（如 "createUser"）
         max_depth: 最大追踪深度，默认 10
-    """
+    
+    Returns:
+        JSON: {"success", "call_tree", "dubbo_calls", "tables", "mq_info", "endpoints"}"""
     if not _ensure_connected():
         return json.dumps({"success": False, "error": "Neo4j 未连接"}, ensure_ascii=False)
     if not project or not class_fqn or not method:
@@ -173,16 +173,16 @@ async def ast_query_call_stats(
     method: str,
     max_depth: int = 10,
 ) -> str:
-    """查询调用统计摘要（不含完整调用树，适合快速分析），返回 JSON 字符串。
-
-    包含：涉及的类列表、数据库表、MQ topic、前端入口路径。
+    """查询调用统计摘要，轻量版不含完整调用树。
 
     Args:
-        project:   项目名称
+        project: 项目名称
         class_fqn: 类全限定名
-        method:    方法名
+        method: 方法名
         max_depth: 最大追踪深度，默认 10
-    """
+    
+    Returns:
+        JSON: {"success", "class_stats", "tables", "mq_list", "frontend_entries"}"""
     if not _ensure_connected():
         return json.dumps({"success": False, "error": "Neo4j 未连接"}, ensure_ascii=False)
     if not project or not class_fqn or not method:
@@ -216,14 +216,16 @@ async def ast_get_call_graph(
     max_depth: int = 3,
     filter_mode: str = "moderate",
 ) -> str:
-    """获取项目的调用关系图（节点列表 + 边列表），返回 JSON 字符串。
+    """获取项目调用关系图（节点+边）。
 
     Args:
-        project:     项目名称
-        start_class: 起始类名（可选，空则返回整个项目图）
-        max_depth:   最大追踪深度，默认 3
-        filter_mode: 节点过滤模式，可选 none / loose / moderate / strict
-    """
+        project: 项目名称（必填）
+        start_class: 起始类名（空则返回整个项目图）
+        max_depth: 最大深度，默认 3
+        filter_mode: 过滤模式（none/loose/moderate/strict）
+    
+    Returns:
+        JSON: {"nodes": [{"id", "type"}], "edges": [{"from", "to"}]}"""
     if not _ensure_connected():
         return json.dumps({"nodes": [], "edges": [], "error": "Neo4j 未连接"}, ensure_ascii=False)
     if not project:
@@ -504,44 +506,17 @@ async def ast_grep_search(
     max_results: int = 50,
     context_lines: int = 3,
 ) -> str:
-    """
-    在 git-repos 目录下通过关键字搜索代码，返回匹配的代码片段和完整文件内容。
-    
-    优先使用 ripgrep 进行高性能搜索，如果 ripgrep 不可用则回退到 Python 实现。
-    
+    """关键字搜索代码，类似 grep，返回匹配的代码片段和完整文件。
+
     Args:
-        pattern:       搜索关键字或正则表达式（必填）
-        project:       项目名称（可选，为空则搜索所有项目）
-        file_pattern:  文件名匹配模式（可选，如 "*.java", "*.py"）
-        max_results:   最大返回结果数，默认 50
-        context_lines: 匹配行的上下文行数，默认 3
+        pattern: 搜索关键字或正则（必填，如 "UserService"、"@Autowired"）
+        project: 项目名称（空则搜索全部项目）
+        file_pattern: 文件名匹配（如 "*.java"）
+        max_results: 最大结果数，默认 50
+        context_lines: 上下文行数，默认 3
     
     Returns:
-        JSON 字符串，包含匹配结果：
-        {
-            "success": true,
-            "results": [
-                {
-                    "file": "相对文件路径",
-                    "project": "项目名",
-                    "absolute_path": "绝对路径",
-                    "matches": [
-                        {
-                            "line_number": 10,
-                            "line_content": "匹配行内容",
-                            "context_before": ["上文..."],
-                            "context_after": ["下文..."]
-                        }
-                    ],
-                    "full_content": "完整文件内容（如果文件不太大）",
-                    "total_lines": 100
-                }
-            ],
-            "total_matches": 5,
-            "total_files": 2,
-            "truncated": false,
-            "search_engine": "ripgrep|python"
-        }
+        JSON: {"success", "results": [{"file", "project", "matches", "full_content"}], "total_matches", "truncated"}
     """
     import asyncio
     
@@ -593,7 +568,134 @@ async def ast_grep_search(
 
 
 # =========================================================
-# 工具 6：按类名读取完整源文件（从 code-index-demo 迁移）
+# 工具 6：glob 模式匹配文件并返回内容
+# =========================================================
+
+@mcp.tool()
+async def ast_glob_files(
+    pattern: str,
+    project: str = "",
+    max_files: int = 20,
+    max_lines_per_file: int = 500,
+    include_content: bool = True,
+) -> str:
+    """glob 模式匹配文件并返回内容。
+
+    Args:
+        pattern: glob 模式（必填，如 "**/UserService.java"、"src/**/*.java"）
+        project: 项目名称（空则搜索全部项目）
+        max_files: 最大返回文件数，默认 20
+        max_lines_per_file: 每个文件最大行数，默认 500
+        include_content: 是否包含文件内容，默认 True
+    
+    Returns:
+        JSON: {"success", "files": [{"path", "relative_path", "project", "content", "total_lines"}], "total", "truncated"}
+    """
+    import glob as glob_module
+    
+    if not pattern or not pattern.strip():
+        return json.dumps({"success": False, "error": "pattern 为必填参数"}, ensure_ascii=False)
+    
+    try:
+        git_tool = GitTool()
+        repos_base = git_tool.repos_base
+        
+        if not repos_base.exists():
+            return json.dumps({"success": False, "error": f"git-repos 目录不存在: {repos_base}"}, ensure_ascii=False)
+        
+        # 确定搜索目录
+        if project and project.strip():
+            search_dir = repos_base / project.strip()
+            if not search_dir.exists():
+                return json.dumps({"success": False, "error": f"项目 '{project}' 不存在"}, ensure_ascii=False)
+        else:
+            search_dir = repos_base
+        
+        pattern = pattern.strip()
+        
+        # 使用 pathlib 的 glob 进行匹配
+        matched_files = []
+        truncated = False
+        
+        # 支持递归 glob (**)
+        if '**' in pattern:
+            matches = list(search_dir.glob(pattern))
+        else:
+            matches = list(search_dir.glob(pattern))
+        
+        # 过滤文件（排除目录和隐藏文件）
+        file_matches = [
+            p for p in matches 
+            if p.is_file() and not any(part.startswith('.') for part in p.parts)
+        ]
+        
+        # 按文件名排序
+        file_matches.sort(key=lambda p: p.name)
+        
+        # 限制数量
+        if len(file_matches) > max_files:
+            truncated = True
+            file_matches = file_matches[:max_files]
+        
+        for file_path in file_matches:
+            try:
+                relative_path = file_path.relative_to(repos_base)
+                path_parts = relative_path.parts
+                proj_name = path_parts[0] if path_parts else ""
+                file_relative = str(Path(*path_parts[1:])) if len(path_parts) > 1 else file_path.name
+            except ValueError:
+                proj_name = ""
+                file_relative = str(file_path)
+            
+            file_info = {
+                "path": str(file_path),
+                "relative_path": file_relative,
+                "project": proj_name,
+                "total_lines": 0,
+                "truncated": False,
+            }
+            
+            if include_content:
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        lines = f.readlines()
+                    
+                    file_info["total_lines"] = len(lines)
+                    
+                    if len(lines) > max_lines_per_file:
+                        lines = lines[:max_lines_per_file]
+                        file_info["truncated"] = True
+                    
+                    file_info["content"] = ''.join(lines)
+                except Exception as e:
+                    file_info["content"] = ""
+                    file_info["error"] = str(e)
+            else:
+                # 不含内容时，仍然获取行数
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        file_info["total_lines"] = sum(1 for _ in f)
+                except Exception:
+                    pass
+            
+            matched_files.append(file_info)
+        
+        return json.dumps({
+            "success": True,
+            "pattern": pattern,
+            "search_dir": str(search_dir),
+            "files": matched_files,
+            "total": len(matched_files),
+            "truncated": truncated
+        }, ensure_ascii=False)
+        
+    except Exception as e:
+        logger.error("ast_glob_files 失败: %s", e)
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
+
+
+# =========================================================
+# 工具 7：按类名读取完整源文件（从 code-index-demo 迁移）
 # =========================================================
 
 def _fqcn_to_relative_path(fqcn: str, ext: str = ".java") -> str:
@@ -676,30 +778,15 @@ async def ast_read_class_file(
     class_name: str,
     max_lines: int = 800,
 ) -> str:
-    """
-    按项目 + 类名（全限定或简单）读取完整源文件，返回 JSON 字符串。
-    
-    智能查找：支持全限定类名（如 com.example.UserService）或简单类名（如 UserService）。
-    
+    """按项目+类名读取完整源文件，智能查找支持全限定名或简单类名。
+
     Args:
-        project:    项目名称（必填，如 "user-service"）
-        class_name: 类名（必填，全限定名如 "com.example.UserService" 或简单类名如 "UserService"）
-        max_lines:  最多读取行数，默认 800
+        project: 项目名称（必填，如 "user-service"）
+        class_name: 类名（全限定如 "com.example.UserService" 或简单如 "UserService"）
+        max_lines: 最大读取行数，默认 800
     
     Returns:
-        JSON 字符串：
-        {
-            "success": true,
-            "project": "user-service",
-            "class_name": "com.example.UserService",
-            "file_path": "/absolute/path/to/UserService.java",
-            "relative_path": "src/main/java/com/example/UserService.java",
-            "total_lines": 150,
-            "start_line": 1,
-            "end_line": 150,
-            "truncated": false,
-            "content": "完整源代码内容"
-        }
+        JSON: {"success", "project", "class_name", "file_path", "content", "total_lines", "truncated"}
     """
     if not class_name or not class_name.strip():
         return json.dumps({"success": False, "error": "请输入类名"}, ensure_ascii=False)
@@ -757,7 +844,7 @@ async def ast_read_class_file(
 
 
 # =========================================================
-# 工具 7：按文件路径读取文件内容
+# 工具 8：按文件路径读取文件内容
 # =========================================================
 
 @mcp.tool()
@@ -766,24 +853,15 @@ async def ast_read_file(
     start_line: int = 0,
     end_line: int = 0,
 ) -> str:
-    """
-    读取 git-repos 目录下的文件内容。
-    
+    """按路径读取文件内容，支持行范围限定。
+
     Args:
-        file_path:  文件路径（相对于 git-repos，如 "project-name/src/Main.java"，
-                    或绝对路径）
-        start_line: 起始行号（1-based，0 表示从头开始）
-        end_line:   结束行号（1-based，0 表示读到末尾）
+        file_path: 文件路径（相对 git-repos 如 "project/src/Main.java"，或绝对路径）
+        start_line: 起始行号（1-based，0=从头）
+        end_line: 结束行号（1-based，0=到末尾）
     
     Returns:
-        JSON 字符串，包含文件内容：
-        {
-            "success": true,
-            "file_path": "绝对路径",
-            "content": "文件内容",
-            "total_lines": 100,
-            "range": {"start": 1, "end": 100}
-        }
+        JSON: {"success", "file_path", "content", "total_lines", "range"}
     """
     if not file_path or not file_path.strip():
         return json.dumps({"success": False, "error": "file_path 为必填参数"}, ensure_ascii=False)
@@ -851,24 +929,15 @@ async def ast_list_files(
     path: str = "",
     file_pattern: str = "",
 ) -> str:
-    """
-    列出项目目录下的文件列表。
-    
+    """列出项目目录下的文件列表。
+
     Args:
-        project:      项目名称（必填）
-        path:         子目录路径（可选，相对于项目根目录）
-        file_pattern: 文件名匹配模式（可选，如 "*.java"）
+        project: 项目名称（必填）
+        path: 子目录路径（可选，相对项目根）
+        file_pattern: 文件名匹配（可选，如 "*.java"）
     
     Returns:
-        JSON 字符串，包含文件列表：
-        {
-            "success": true,
-            "project": "项目名",
-            "path": "当前目录",
-            "items": [
-                {"name": "文件或目录名", "type": "file|directory", "size": 1234}
-            ]
-        }
+        JSON: {"success", "project", "path", "items": [{"name", "type", "size"}], "total"}
     """
     import re
     
